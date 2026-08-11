@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>영업 대시보드</title>
+<link rel="stylesheet" as="style" crossorigin
+  href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<style>
+  :root {
+    --color-bg: #ffffff;
+    --color-surface: #ffffff;
+    --color-border: #E7EAF0;
+    --color-text: #10151F;
+    --color-text-muted: #6B7280;
+    --color-primary: #2454E0;
+    --color-primary-dark: #16308C;
+    --color-primary-soft: #EAF0FE;
+    --color-primary-softer: #C7D9FB;
+    --radius: 14px;
+    --shadow-card: 0 1px 2px rgba(16,21,31,.04), 0 8px 24px -12px rgba(16,21,31,.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 1280px; margin: 0 auto; padding: 32px 24px 60px; }
+
+  .page-header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 16px; flex-wrap: wrap; margin-bottom: 28px;
+  }
+  h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 4px; }
+  .subtitle { font-size: 13px; color: var(--color-text-muted); margin: 0; }
+  .refresh-btn {
+    border: 1px solid var(--color-border); background: #fff; color: var(--color-primary);
+    font-weight: 600; font-size: 13px; padding: 9px 18px; border-radius: 999px;
+    cursor: pointer; transition: background .15s ease; font-family: inherit;
+  }
+  .refresh-btn:hover { background: var(--color-primary-soft); }
+  .refresh-btn:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+  .card {
+    background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: var(--radius); box-shadow: var(--shadow-card); padding: 20px 22px;
+  }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+  .kpi-label { font-size: 12.5px; color: var(--color-text-muted); margin: 0 0 8px; font-weight: 600; }
+  .kpi-value { font-size: 22px; font-weight: 800; margin: 0; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .kpi-value .unit { font-size: 13px; font-weight: 600; color: var(--color-text-muted); margin-left: 4px; }
+  .kpi--main .kpi-value--xl { font-size: 34px; }
+  .kpi-sub { font-size: 12.5px; color: var(--color-text-muted); margin: 10px 0 0; }
+  .kpi-sub strong { color: var(--color-primary); font-weight: 700; }
+  .progress-track { margin-top: 12px; height: 8px; background: var(--color-primary-soft); border-radius: 999px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--color-primary); border-radius: 999px; transition: width .5s ease; }
+
+  .charts-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 16px; align-items: stretch; }
+  .chart-card h2, .rank-grid h2 { font-size: 15px; font-weight: 700; margin: 0 0 16px; }
+  .chart-wrap svg { width: 100%; height: auto; display: block; overflow: visible; }
+
+  .legend { display: flex; gap: 16px; margin-top: 12px; font-size: 12px; color: var(--color-text-muted); flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot--strong { background: var(--color-primary); }
+  .dot--soft { background: var(--color-primary-softer); }
+  .dash { width: 14px; height: 0; border-top: 2px dashed var(--color-primary-dark); display: inline-block; }
+
+  svg .grid-line { stroke: var(--color-border); stroke-width: 1; }
+  svg .axis-label { font-size: 11px; fill: var(--color-text-muted); }
+  svg .axis-label--current { fill: var(--color-primary); font-weight: 700; }
+  svg .bar-value { font-size: 11px; fill: var(--color-text); font-weight: 600; }
+  svg .bar--soft { fill: var(--color-primary-softer); }
+  svg .bar--current { fill: var(--color-primary); }
+  svg .target-line { fill: none; stroke: var(--color-primary-dark); stroke-width: 2; stroke-dasharray: 6 5; opacity: .75; }
+
+  svg .funnel-label { font-size: 13px; font-weight: 700; }
+  svg .funnel-count { font-size: 11.5px; opacity: .9; }
+  svg .funnel-rate { font-size: 11.5px; fill: var(--color-primary-dark); font-weight: 700; }
+  svg .funnel-final { font-size: 13.5px; fill: var(--color-text); font-weight: 800; }
+
+  .rank-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .rank-list { display: flex; flex-direction: column; gap: 14px; }
+  .rank-row { display: flex; align-items: center; gap: 12px; }
+  .rank-no {
+    width: 22px; height: 22px; flex: none; border-radius: 50%;
+    background: var(--color-primary-soft); color: var(--color-primary-dark);
+    font-size: 11.5px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  }
+  .rank-body { flex: 1; min-width: 0; }
+  .rank-top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; gap: 8px; }
+  .rank-name { font-weight: 600; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank-amount { font-weight: 700; color: var(--color-primary); font-variant-numeric: tabular-nums; flex: none; }
+  .rank-track { height: 6px; background: var(--color-primary-soft); border-radius: 999px; overflow: hidden; }
+  .rank-fill { height: 100%; background: var(--color-primary); border-radius: 999px; }
+
+  .footnote { text-align: center; font-size: 11.5px; color: var(--color-text-muted); margin-top: 24px; }
+  .empty { font-size: 13px; color: var(--color-text-muted); }
+
+  @media (max-width: 1024px) {
+    .charts-grid { grid-template-columns: 1fr; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+    .rank-grid { grid-template-columns: 1fr; }
+    .kpi--main .kpi-value--xl { font-size: 28px; }
+    .page { padding: 20px 16px 40px; }
+    .page-header { align-items: flex-start; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="page-header">
+    <div>
+      <h1>영업 대시보드</h1>
+      <p class="subtitle" id="subtitle">데이터를 불러오는 중...</p>
+    </div>
+    <button id="refreshBtn" class="refresh-btn" type="button">새로고침</button>
+  </header>
+
+  <main>
+    <section class="kpi-grid" id="kpiGrid"></section>
+
+    <section class="charts-grid">
+      <div class="card chart-card">
+        <h2>월별 매출</h2>
+        <div class="chart-wrap">
+          <svg id="monthlyChart" viewBox="0 0 640 340" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+        <div class="legend">
+          <span class="legend-item"><i class="dot dot--strong"></i>이번 달</span>
+          <span class="legend-item"><i class="dot dot--soft"></i>이전 달</span>
+          <span class="legend-item"><i class="dash"></i>목표</span>
+        </div>
+      </div>
+
+      <div class="card chart-card">
+        <h2>영업 단계 깔때기</h2>
+        <div class="chart-wrap">
+          <svg id="funnelChart" viewBox="0 0 320 320" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+      </div>
+    </section>
+
+    <section class="rank-grid">
+      <div class="card">
+        <h2>담당자별 순위</h2>
+        <div id="personRank" class="rank-list"></div>
+      </div>
+      <div class="card">
+        <h2>상품별 순위</h2>
+        <div id="productRank" class="rank-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <p class="footnote">금액 단위: 만원</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const { createClient } = supabase;
+  const db = createClient(
+    "https://mcypzsammvrthfqihkwy.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeXB6c2FtbXZydGhmcWloa3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzOTk1NzcsImV4cCI6MjEwMTk3NTU3N30.oUcfA-F0S9QHgpK56qvB0-aczx7AMPXDCtkVtNrJ3QM"
+  );
+
+  const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  async function loadDashboard() {
+    const subtitle = document.getElementById('subtitle');
+    subtitle.textContent = '데이터를 불러오는 중...';
+    try {
+      const [monthlyRes, pipelineRes, rankRes] = await Promise.all([
+        db.from('sales_monthly').select('*').order('sort_order', { ascending: true }),
+        db.from('sales_pipeline').select('*').order('sort_order', { ascending: true }),
+        db.from('sales_rank').select('*').order('amount', { ascending: false }),
+      ]);
+      if (monthlyRes.error) throw monthlyRes.error;
+      if (pipelineRes.error) throw pipelineRes.error;
+      if (rankRes.error) throw rankRes.error;
+
+      const monthly = monthlyRes.data || [];
+      const pipeline = pipelineRes.data || [];
+      const rank = rankRes.data || [];
+
+      if (!monthly.length || !pipeline.length) {
+        subtitle.textContent = '표시할 데이터가 없습니다.';
+        return;
+      }
+
+      renderKPI(monthly, pipeline);
+      renderMonthlyChart(monthly);
+      renderFunnel(pipeline);
+      renderRank('personRank', rank.filter(r => r.kind === 'person'));
+      renderRank('productRank', rank.filter(r => r.kind === 'product'));
+
+      const now = new Date();
+      subtitle.textContent = '기준월: ' + monthly[monthly.length - 1].month + ' · 마지막 업데이트 ' +
+        now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    } catch (err) {
+      console.error(err);
+      subtitle.textContent = '데이터를 불러오지 못했습니다: ' + (err.message || String(err));
+    }
+  }
+
+  function renderKPI(monthly, pipeline) {
+    const cur = monthly[monthly.length - 1];
+    const contractStage = pipeline[pipeline.length - 1];
+    const contractCount = contractStage ? contractStage.count : 0;
+    const achievement = cur.target > 0 ? (cur.revenue / cur.target) * 100 : 0;
+    const remaining = cur.target - cur.revenue;
+    const avgDeal = contractCount > 0 ? Math.round(cur.revenue / contractCount) : 0;
+    const barWidth = Math.min(Math.max(achievement, 0), 100);
+
+    document.getElementById('kpiGrid').innerHTML = `
+      <div class="card kpi kpi--main">
+        <p class="kpi-label">이번 달 매출 (${escapeHtml(cur.month)})</p>
+        <p class="kpi-value kpi-value--xl">${fmt(cur.revenue)}<span class="unit">만원</span></p>
+        <div class="progress-track"><div class="progress-fill" style="width:${barWidth}%"></div></div>
+        <p class="kpi-sub">목표 대비 <strong>${achievement.toFixed(1)}%</strong> 달성</p>
+      </div>
+      <div class="card kpi">
+        <p class="kpi-label">이번 달 목표</p>
+        <p class="kpi-value">${fmt(cur.target)}<span class="unit">만원</span></p>
+        <p class="kpi-sub">${remaining > 0 ? '남은 금액 ' + fmt(remaining) + '만원' : '목표 달성 완료'}</p>
+      </div>
+      <div class="card kpi">
+        <p class="kpi-label">객단가</p>
+        <p class="kpi-value">${fmt(avgDeal)}<span class="unit">만원</span></p>
+        <p class="kpi-sub">매출 ÷ 계약 건수</p>
+      </div>
+      <div class="card kpi">
+        <p class="kpi-label">계약 건수</p>
+        <p class="kpi-value">${fmt(contractCount)}<span class="unit">건</span></p>
+        <p class="kpi-sub">${contractStage ? escapeHtml(contractStage.stage) : ''} 단계 기준</p>
+      </div>
+    `;
+  }
+
+  function renderMonthlyChart(monthly) {
+    const svg = document.getElementById('monthlyChart');
+    const W = 640, H = 340;
+    const marginLeft = 46, marginRight = 16, marginTop = 24, marginBottom = 40;
+    const plotW = W - marginLeft - marginRight;
+    const plotH = H - marginTop - marginBottom;
+    const n = monthly.length;
+    const maxVal = Math.max(...monthly.map(m => Math.max(m.revenue, m.target))) * 1.15 || 1;
+    const slot = plotW / n;
+    const barW = slot * 0.5;
+
+    const yFor = (v) => marginTop + plotH - (v / maxVal) * plotH;
+    const xForCenter = (i) => marginLeft + i * slot + slot / 2;
+
+    let gridLines = '';
+    const ticks = 4;
+    for (let t = 0; t <= ticks; t++) {
+      const v = (maxVal / ticks) * t;
+      const y = yFor(v);
+      gridLines += `<line x1="${marginLeft}" y1="${y}" x2="${W - marginRight}" y2="${y}" class="grid-line" />`;
+      gridLines += `<text x="${marginLeft - 8}" y="${y + 4}" class="axis-label" text-anchor="end">${fmt(Math.round(v))}</text>`;
+    }
+
+    let bars = '', xLabels = '';
+    monthly.forEach((m, i) => {
+      const x = marginLeft + i * slot + (slot - barW) / 2;
+      const h = (m.revenue / maxVal) * plotH;
+      const y = marginTop + plotH - h;
+      const isCurrent = i === n - 1;
+      bars += `
+        <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" class="${isCurrent ? 'bar bar--current' : 'bar bar--soft'}">
+          <title>${escapeHtml(m.month)}: ${fmt(m.revenue)}만원</title>
+        </rect>
+        <text x="${x + barW / 2}" y="${y - 8}" text-anchor="middle" class="bar-value">${fmt(m.revenue)}</text>
+      `;
+      xLabels += `<text x="${x + barW / 2}" y="${H - marginBottom + 20}" text-anchor="middle" class="axis-label ${isCurrent ? 'axis-label--current' : ''}">${escapeHtml(m.month)}</text>`;
+    });
+
+    const targetPoints = monthly.map((m, i) => `${xForCenter(i)},${yFor(m.target)}`).join(' ');
+
+    svg.innerHTML = `${gridLines}${bars}<polyline points="${targetPoints}" class="target-line" />${xLabels}`;
+  }
+
+  function lerpColor(light, dark, t) {
+    const r = Math.round(light[0] + (dark[0] - light[0]) * t);
+    const g = Math.round(light[1] + (dark[1] - light[1]) * t);
+    const b = Math.round(light[2] + (dark[2] - light[2]) * t);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  function renderFunnel(pipeline) {
+    const svg = document.getElementById('funnelChart');
+    const W = 320;
+    const n = pipeline.length;
+    const bandH = 44, gap = 30, marginTop = 10;
+    const H = marginTop + n * bandH + (n - 1) * gap + 40;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+    const maxCount = Math.max(...pipeline.map(p => p.count)) || 1;
+    const maxWidth = W - 40;
+    const cx = W / 2;
+    const LIGHT = [201, 217, 251];
+    const DARK = [22, 48, 140];
+
+    let content = '';
+    pipeline.forEach((p, i) => {
+      const topCount = p.count;
+      const bottomCount = i + 1 < n ? pipeline[i + 1].count : p.count;
+      const topW = (topCount / maxCount) * maxWidth;
+      const botW = (bottomCount / maxCount) * maxWidth;
+      const yTop = marginTop + i * (bandH + gap);
+      const yBottom = yTop + bandH;
+      const t = n > 1 ? i / (n - 1) : 1;
+      const fillColor = lerpColor(LIGHT, DARK, t);
+      const textColor = t < 0.55 ? '#10151F' : '#FFFFFF';
+
+      const x1 = cx - topW / 2, x2 = cx + topW / 2;
+      const x3 = cx + botW / 2, x4 = cx - botW / 2;
+
+      content += `
+        <polygon points="${x1},${yTop} ${x2},${yTop} ${x3},${yBottom} ${x4},${yBottom}" fill="${fillColor}" />
+        <text x="${cx}" y="${yTop + bandH / 2 - 4}" text-anchor="middle" class="funnel-label" style="fill:${textColor}">${escapeHtml(p.stage)}</text>
+        <text x="${cx}" y="${yTop + bandH / 2 + 14}" text-anchor="middle" class="funnel-count" style="fill:${textColor}">${fmt(p.count)}건</text>
+      `;
+
+      if (i + 1 < n) {
+        const rate = topCount > 0 ? (bottomCount / topCount) * 100 : 0;
+        content += `<text x="${cx}" y="${yBottom + gap / 2 + 4}" text-anchor="middle" class="funnel-rate">▼ ${rate.toFixed(1)}%</text>`;
+      }
+    });
+
+    const finalRate = pipeline[0].count > 0 ? (pipeline[n - 1].count / pipeline[0].count) * 100 : 0;
+    const lastY = marginTop + n * bandH + (n - 1) * gap;
+    content += `<text x="${cx}" y="${lastY + 26}" text-anchor="middle" class="funnel-final">최종 전환율 ${finalRate.toFixed(1)}%</text>`;
+
+    svg.innerHTML = content;
+  }
+
+  function renderRank(containerId, items) {
+    const el = document.getElementById(containerId);
+    if (!items.length) {
+      el.innerHTML = '<p class="empty">데이터가 없습니다.</p>';
+      return;
+    }
+    const maxAmount = Math.max(...items.map(i => i.amount)) || 1;
+    el.innerHTML = items.map((item, idx) => {
+      const width = (item.amount / maxAmount) * 100;
+      return `
+        <div class="rank-row">
+          <span class="rank-no">${idx + 1}</span>
+          <div class="rank-body">
+            <div class="rank-top">
+              <span class="rank-name">${escapeHtml(item.name)}</span>
+              <span class="rank-amount">${fmt(item.amount)}만원</span>
+            </div>
+            <div class="rank-track"><div class="rank-fill" style="width:${width}%"></div></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('refreshBtn').addEventListener('click', loadDashboard);
+  loadDashboard();
+</script>
+</body>
+</html>

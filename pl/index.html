@@ -39,51 +39,34 @@
   }
   a{color:inherit;}
 
-  /* ---------- HUD ---------- */
-  .hud{
-    position:sticky; top:0; z-index:50;
-    display:flex; align-items:center; gap:14px;
-    flex-wrap:wrap;
-    padding:10px 20px;
-    background:rgba(255,255,255,0.92);
-    backdrop-filter:blur(6px);
-    border-bottom:1px solid var(--border);
+  /* ---------- 허브 헤더 ---------- */
+  .hub-link{
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:13.5px; color:var(--text-secondary); text-decoration:none;
+    margin-bottom:16px;
   }
-  .hud-title{
-    display:flex; align-items:center; gap:8px;
-    font-weight:700; font-size:15px; letter-spacing:-0.01em;
-    white-space:nowrap;
+  .hub-link:hover{color:var(--text-primary); text-decoration:underline;}
+  .page-head{margin-bottom:20px;}
+  .page-head-top{
+    display:flex; align-items:flex-start; justify-content:space-between;
+    gap:16px; flex-wrap:wrap;
   }
-  .hud-title .dot{width:8px;height:8px;border-radius:50%;background:var(--green-fill);}
-  .hud-sep{width:1px;height:16px;background:var(--border);}
-  .hud-item{
-    display:flex; align-items:center; gap:6px;
-    font-size:12.5px; color:var(--text-secondary); white-space:nowrap;
-  }
-  .hud-item b{color:var(--text-primary); font-weight:600;}
-  .status-dot{width:8px;height:8px;border-radius:50%;background:var(--gray-bar); flex:none;}
-  .status-dot.ok{background:var(--green-fill);}
-  .status-dot.err{background:var(--red);}
-  .status-dot.loading{background:#eda100; animation:pulse 1.1s ease-in-out infinite;}
-  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
-  .hud-spacer{flex:1;}
+  .page-head h1{font-size:clamp(22px,3vw,28px); margin:0 0 6px; letter-spacing:-0.02em; font-weight:700;}
+  .page-meta{margin:0; color:var(--text-secondary); font-size:13.5px;}
   .refresh-btn{
-    display:inline-flex; align-items:center; gap:6px;
-    background:var(--text-primary); color:#fff;
-    border:none; border-radius:999px;
-    padding:7px 14px; font-size:12.5px; font-weight:600;
+    display:inline-flex; align-items:center; gap:6px; flex:none;
+    background:#f0f0ee; color:var(--text-primary);
+    border:none; border-radius:10px;
+    padding:9px 18px; font-size:13.5px; font-weight:600;
     cursor:pointer; font-family:inherit;
-    transition:opacity .15s;
+    transition:background .15s;
   }
-  .refresh-btn:hover{opacity:.85;}
+  .refresh-btn:hover{background:#e4e3de;}
   .refresh-btn:disabled{opacity:.5; cursor:default;}
   .refresh-btn svg{width:13px;height:13px;}
 
   /* ---------- Layout ---------- */
   .page{max-width:1240px; margin:0 auto; padding:24px 20px 60px;}
-  .page-head{margin-bottom:20px;}
-  .page-head h1{font-size:clamp(20px,3vw,26px); margin:0 0 4px; letter-spacing:-0.02em;}
-  .page-head p{margin:0; color:var(--text-secondary); font-size:13.5px;}
 
   .banner{
     display:none;
@@ -229,30 +212,23 @@
   @media (max-width:520px){
     .stat-grid{grid-template-columns:1fr;}
     .page{padding:18px 14px 50px;}
-    .hud{padding:10px 14px;}
     .margin-name{width:74px;}
   }
 </style>
 </head>
 <body>
 
-<div class="hud">
-  <div class="hud-title"><span class="dot"></span>손익 대시보드</div>
-  <div class="hud-sep"></div>
-  <div class="hud-item">기준월 <b id="hudMonth">-</b></div>
-  <div class="hud-item"><span class="status-dot loading" id="hudStatusDot"></span><span id="hudStatusText">연결 확인 중</span></div>
-  <div class="hud-item">최종 갱신 <b id="hudUpdated">-</b></div>
-  <div class="hud-spacer"></div>
-  <button class="refresh-btn" id="refreshBtn" type="button">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
-    새로고침
-  </button>
-</div>
-
 <div class="page">
+  <!-- 허브 페이지 경로: 저장소 구조에 맞게 필요하면 href만 수정하세요 -->
+  <a class="hub-link" href="../index.html">← 대시보드 허브</a>
   <div class="page-head">
-    <h1>손익 대시보드</h1>
-    <p>Supabase 실시간 데이터 기준 · 매출·비용·영업이익 현황을 한눈에 확인합니다.</p>
+    <div class="page-head-top">
+      <div>
+        <h1>손익 대시보드</h1>
+        <p class="page-meta" id="pageMeta">데이터를 불러오는 중입니다...</p>
+      </div>
+      <button class="refresh-btn" id="refreshBtn" type="button">새로고침</button>
+    </div>
   </div>
 
   <div class="banner error" id="errorBanner"></div>
@@ -414,18 +390,16 @@
     };
   }
 
-  // ---------- HUD ----------
-  function setHudStatus(state, text){
-    var dot = $("hudStatusDot");
-    dot.className = "status-dot " + state;
-    $("hudStatusText").textContent = text;
+  // ---------- 상단 헤더 ----------
+  function setPageMeta(text){
+    $("pageMeta").textContent = text;
   }
-  function setHudMeta(month){
-    $("hudMonth").textContent = month || "-";
+  function setPageMetaLoaded(month){
     var now = new Date();
-    $("hudUpdated").textContent = now.toLocaleString("ko-KR", {
-      month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit"
+    var timeStr = now.toLocaleString("ko-KR", {
+      hour:"2-digit", minute:"2-digit"
     });
+    setPageMeta("기준월: " + (month || "-") + " · 마지막 업데이트 " + timeStr);
   }
 
   // ---------- 카드 ----------
@@ -589,7 +563,9 @@
     }
     function arcPath(t0, t1){
       var p0 = point(t0), p1 = point(t1);
-      var large = (t1 - t0) > 0.5 ? 1 : 0;
+      // t는 반원(최대 180도) 구간만 표현하므로 두 점 사이 호는 항상 "작은 쪽" 호입니다.
+      // large-arc-flag를 항상 0으로 고정해야 게이지가 반대 방향으로 길게 그려지는 오류가 생기지 않습니다.
+      var large = 0;
       return "M " + p0.x + " " + p0.y + " A " + r + " " + r + " 0 " + large + " 1 " + p1.x + " " + p1.y;
     }
 
@@ -712,7 +688,7 @@
     banner.innerHTML =
       "데이터를 불러오지 못했습니다. Supabase URL/anon key, 테이블·컬럼 이름을 다시 확인해주세요.<br>" +
       "<code>" + (err && err.message ? err.message : String(err)) + "</code>";
-    setHudStatus("err", "연결 오류");
+    setPageMeta("연결 오류 — 아래 안내를 확인해주세요");
   }
 
   function isConfigured(){
@@ -726,11 +702,11 @@
     var btn = $("refreshBtn");
     btn.disabled = true;
     $("errorBanner").classList.remove("show");
-    setHudStatus("loading", "불러오는 중");
+    setPageMeta("데이터를 불러오는 중입니다...");
 
     if(!isConfigured()){
       $("setupBanner").classList.add("show");
-      setHudStatus("err", "설정 필요");
+      setPageMeta("Supabase 연결 정보를 입력해주세요");
       btn.disabled = false;
       return;
     }
@@ -752,14 +728,12 @@
       var metrics = computeMetrics(currentRow);
       var prevMetrics = prevRow ? computeMetrics(prevRow) : null;
 
-      setHudMeta(currentRow.month);
+      setPageMetaLoaded(currentRow.month);
       renderCards(metrics, prevMetrics);
       renderWaterfall(metrics);
       renderGauge(metrics);
       renderCostTable(costRes.data || []);
       renderMarginChart(marginRes.data || []);
-
-      setHudStatus("ok", "연결됨");
     } catch(err){
       showError(err);
     } finally {

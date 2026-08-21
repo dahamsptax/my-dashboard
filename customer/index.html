@@ -1,0 +1,48 @@
+create table customer_summary (
+  id bigint primary key generated always as identity,
+  sort_order int not null,
+  month text not null,
+  total_customers bigint not null,
+  new_customers bigint not null,
+  churn_rate numeric not null,    -- 이탈률 %
+  ltv bigint not null             -- 고객 한 명이 평생 쓰는 금액(원)
+);
+insert into customer_summary (sort_order, month, total_customers, new_customers, churn_rate, ltv) values
+  (1,'2월',3120,271,4.6,524000),
+  (2,'3월',3350,289,4.9,541000),
+  (3,'4월',3580,302,4.4,558000),
+  (4,'5월',3820,318,5.1,570000),
+  (5,'6월',4050,330,4.8,573000),
+  (6,'7월',4280,359,6.2,612000);
+
+-- 코호트: N월에 들어온 고객이 몇 달 뒤 몇 % 남았나
+create table customer_cohort (
+  id bigint primary key generated always as identity,
+  sort_order int not null,
+  cohort_month text not null,
+  months_after int not null,
+  retention numeric not null
+);
+insert into customer_cohort (sort_order, cohort_month, months_after, retention) values
+  (1,'2월',0,100),(1,'2월',1,42),(1,'2월',2,31),(1,'2월',3,26),(1,'2월',4,23),(1,'2월',5,21),
+  (2,'3월',0,100),(2,'3월',1,45),(2,'3월',2,34),(2,'3월',3,28),(2,'3월',4,25),
+  (3,'4월',0,100),(3,'4월',1,44),(3,'4월',2,33),(3,'4월',3,27),
+  (4,'5월',0,100),(4,'5월',1,48),(4,'5월',2,36),
+  (5,'6월',0,100),(5,'6월',1,51),
+  (6,'7월',0,100);
+
+create table customer_repeat (
+  id bigint primary key generated always as identity,
+  sort_order int not null,
+  period text not null,
+  rate numeric not null
+);
+insert into customer_repeat (sort_order, period, rate) values
+  (1,'1개월',18.2), (2,'3개월',31.6), (3,'6개월',38.4), (4,'12개월',44.1);
+
+alter table customer_summary enable row level security;
+alter table customer_cohort  enable row level security;
+alter table customer_repeat  enable row level security;
+create policy "read" on customer_summary for select to anon using (true);
+create policy "read" on customer_cohort  for select to anon using (true);
+create policy "read" on customer_repeat  for select to anon using (true);

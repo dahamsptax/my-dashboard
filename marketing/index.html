@@ -1,52 +1,497 @@
-drop table if exists marketing_channel cascade;
-drop table if exists marketing_monthly cascade;
-drop table if exists marketing_budget cascade;
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>마케팅 대시보드</title>
+<link rel="stylesheet" as="style" crossorigin
+  href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<style>
+  :root{
+    --bg:#ffffff;
+    --surface:#ffffff;
+    --text:#1a1a1a;
+    --text-muted:#767268;
+    --border:#e9e6e1;
+    --border-soft:#f1efeb;
+    --accent:#ff6a2c;
+    --accent-soft:rgba(255,106,44,0.12);
+    --accent-soft-strong:rgba(255,106,44,0.38);
+    --radius:16px;
+    --shadow:0 1px 2px rgba(20,20,20,0.04), 0 10px 28px rgba(20,20,20,0.05);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+    -webkit-font-smoothing:antialiased;
+    line-height:1.4;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:36px 20px 64px;}
 
-create table marketing_channel (
-  id bigint primary key generated always as identity,
-  channel text not null,
-  spend bigint not null,
-  impressions bigint not null,
-  clicks bigint not null,
-  conversions bigint not null,
-  revenue bigint not null
-);
-insert into marketing_channel (channel, spend, impressions, clicks, conversions, revenue) values
-('네이버 검색', 412, 862400, 24180, 148, 2587),
-('메타 광고', 368, 1240600, 18420, 96, 1733),
-('구글 검색', 214, 418900, 11240, 58, 832),
-('인스타 릴스', 156, 2108300, 9860, 34, 386),
-('카카오모먼트', 90, 386200, 4510, 23, 158);
+  .topnav{margin-bottom:16px;}
+  .topnav a{color:var(--text-muted);text-decoration:none;font-size:13px;font-weight:600;}
+  .topnav a:hover{color:var(--text);}
+  header{margin-bottom:28px;}
+  header h1{font-size:22px;font-weight:800;letter-spacing:-0.02em;}
+  header .header-sub{font-size:13px;color:var(--text-muted);margin-top:6px;}
 
-create table marketing_monthly (
-  id bigint primary key generated always as identity,
-  sort_order int not null,
-  month text not null,
-  spend bigint not null,
-  roas numeric not null
-);
-insert into marketing_monthly (sort_order, month, spend, roas) values
-(1,'2월',742,368),
-(2,'3월',815,392),
-(3,'4월',906,381),
-(4,'5월',1024,404),
-(5,'6월',1138,396),
-(6,'7월',1240,412);
+  .section-title{font-size:15px;font-weight:700;margin-bottom:16px;letter-spacing:-0.01em;}
 
-create table marketing_budget (
-  id bigint primary key generated always as identity,
-  month text not null,
-  budget bigint not null,
-  days_total int not null,
-  days_passed int not null
-);
-insert into marketing_budget (month, budget, days_total, days_passed) values
-('7월', 1500, 31, 24);
+  /* ---------- cards ---------- */
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:20px;box-shadow:var(--shadow);animation:fadeUp .5s ease both;}
+  .cards .card:nth-child(1){animation-delay:.02s;}
+  .cards .card:nth-child(2){animation-delay:.06s;}
+  .cards .card:nth-child(3){animation-delay:.10s;}
+  .cards .card:nth-child(4){animation-delay:.14s;}
+  .card-label{font-size:12.5px;color:var(--text-muted);font-weight:600;margin-bottom:10px;}
+  .card-value{font-size:24px;font-weight:800;letter-spacing:-0.02em;word-break:break-all;}
+  .card.spend .card-value{font-size:30px;}
+  .card-sub{font-size:12px;color:var(--text-muted);margin-top:10px;}
+  .card-bar-track{height:6px;background:var(--accent-soft);border-radius:99px;margin-top:12px;overflow:hidden;}
+  .card-bar-fill{height:100%;background:var(--accent);border-radius:99px;width:0%;
+    transition:width .6s ease;}
 
-alter table marketing_channel enable row level security;
-alter table marketing_monthly enable row level security;
-alter table marketing_budget enable row level security;
+  /* ---------- table card ---------- */
+  .table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:22px 20px;margin-bottom:20px;animation:fadeUp .5s ease .16s both;}
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  table{width:100%;border-collapse:collapse;min-width:740px;}
+  th{font-size:11.5px;color:var(--text-muted);text-align:right;font-weight:700;
+    padding:0 12px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{font-size:13.5px;padding:12px;border-bottom:1px solid var(--border-soft);
+    text-align:right;white-space:nowrap;}
+  th:first-child, td:first-child{text-align:left;}
+  tr:last-of-type td{border-bottom:none;}
+  .td-channel{font-weight:600;}
+  .tr-total td{font-weight:800;background:#fbfaf8;border-top:2px solid var(--border);}
+  .roas-cell{display:flex;flex-direction:column;align-items:flex-end;gap:5px;}
+  .roas-bar-track{width:78px;height:5px;background:var(--accent-soft);border-radius:99px;overflow:hidden;}
+  .roas-bar-fill{height:100%;background:var(--accent);border-radius:99px;}
 
-create policy "read" on marketing_channel for select to anon using (true);
-create policy "read" on marketing_monthly for select to anon using (true);
-create policy "read" on marketing_budget for select to anon using (true);
+  /* ---------- bottom grid ---------- */
+  .bottom-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;}
+  .chart-card, .pacing-card{background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius);box-shadow:var(--shadow);padding:22px 20px;
+    animation:fadeUp .5s ease .2s both;}
+
+  .chart-legend{display:flex;gap:16px;font-size:12px;color:var(--text-muted);margin:-6px 0 14px;}
+  .legend-swatch{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:middle;}
+  .legend-swatch.bar{background:var(--accent-soft-strong);border-radius:3px;}
+  .legend-swatch.line{background:var(--accent);border-radius:50%;}
+  .combo-svg{width:100%;height:auto;display:block;}
+  .axis-line{stroke:var(--border);stroke-width:1;}
+  .axis-label{font-size:9px;fill:var(--text-muted);}
+  .roas-line{stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round;}
+  .line-dot{fill:#fff;stroke:var(--accent);stroke-width:2;}
+
+  .pace-row{margin-bottom:14px;}
+  .pace-label{display:flex;justify-content:space-between;font-size:13px;margin-bottom:7px;font-weight:600;}
+  .pace-track{height:10px;background:#f2f0eb;border-radius:99px;overflow:hidden;}
+  .pace-fill{height:100%;background:var(--accent);border-radius:99px;width:0%;transition:width .6s ease;}
+  .pace-fill-muted{background:#cfccc5;}
+  .pace-msg{font-size:13px;color:var(--text);line-height:1.65;margin:0 0 6px;}
+  .pace-msg strong{color:var(--accent);}
+  .pace-stats{display:flex;justify-content:space-between;gap:8px;margin-top:16px;padding-top:16px;
+    border-top:1px dashed var(--border);}
+  .stat-label{display:block;font-size:11px;color:var(--text-muted);margin-bottom:5px;}
+  .stat-value{font-size:13.5px;font-weight:800;}
+
+  .empty-msg{font-size:13px;color:var(--text-muted);padding:20px 0;text-align:center;}
+
+  .status-msg{display:none;margin-top:20px;padding:14px 16px;border:1px solid var(--accent);
+    background:var(--accent-soft);border-radius:10px;font-size:13px;color:#8a3512;line-height:1.6;}
+  .status-detail{display:block;opacity:.7;font-size:11px;margin-top:4px;}
+
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+  @media (max-width:960px){
+    .cards{grid-template-columns:repeat(2,1fr);}
+    .bottom-grid{grid-template-columns:1fr;}
+  }
+  @media (max-width:520px){
+    .cards{grid-template-columns:1fr;}
+    .wrap{padding:24px 14px 48px;}
+    .card.spend .card-value{font-size:26px;}
+    .pace-stats{flex-wrap:wrap;}
+    .pace-stats > div{width:48%;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none !important;transition:none !important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topnav"><a href="/">← 대시보드 허브</a></div>
+
+  <header>
+    <h1>마케팅 대시보드</h1>
+    <p class="header-sub">채널별 성과와 예산 소진 현황을 한눈에 확인하세요.</p>
+  </header>
+
+  <section class="cards">
+    <div class="card spend">
+      <div class="card-label">이번 달 광고비</div>
+      <div class="card-value" id="cardSpendValue">-</div>
+      <div class="card-bar-track"><div class="card-bar-fill" id="cardSpendBarFill"></div></div>
+      <div class="card-sub" id="cardSpendSub">불러오는 중...</div>
+    </div>
+    <div class="card">
+      <div class="card-label">통합 ROAS</div>
+      <div class="card-value" id="cardRoasValue">-</div>
+    </div>
+    <div class="card">
+      <div class="card-label">CAC (전환당 비용)</div>
+      <div class="card-value" id="cardCacValue">-</div>
+    </div>
+    <div class="card">
+      <div class="card-label">전환수</div>
+      <div class="card-value" id="cardConvValue">-</div>
+      <div class="card-sub" id="cardConvSub">CVR -</div>
+    </div>
+  </section>
+
+  <section class="table-card">
+    <h2 class="section-title">채널별 성과</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>채널</th><th>광고비</th><th>노출</th><th>클릭</th><th>CTR</th>
+            <th>CPC</th><th>전환</th><th>CPA</th><th>ROAS</th>
+          </tr>
+        </thead>
+        <tbody id="channelTbody">
+          <tr><td colspan="9" class="empty-msg">불러오는 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="bottom-grid">
+    <div class="chart-card">
+      <h2 class="section-title">월별 광고비 · ROAS 추이</h2>
+      <div class="chart-legend">
+        <span><i class="legend-swatch bar"></i>광고비</span>
+        <span><i class="legend-swatch line"></i>ROAS</span>
+      </div>
+      <div id="comboChart"><div class="empty-msg">불러오는 중...</div></div>
+    </div>
+    <div class="pacing-card">
+      <h2 class="section-title">예산 소진 페이싱</h2>
+      <div id="pacingBody"><div class="empty-msg">불러오는 중...</div></div>
+    </div>
+  </section>
+
+  <div id="statusMsg" class="status-msg"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  /*
+    ▼▼▼ 아래 2줄만 본인 Supabase 정보로 바꿔주세요 ▼▼▼
+    Supabase 대시보드 > Project Settings > API 에서 확인할 수 있어요.
+    1) SUPABASE_URL      → Project URL
+    2) SUPABASE_ANON_KEY → anon public key
+  */
+  const SUPABASE_URL = "https://mcypzsammvrthfqihkwy.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeXB6c2FtbXZydGhmcWloa3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzOTk1NzcsImV4cCI6MjEwMTk3NTU3N30.oUcfA-F0S9QHgpK56qvB0-aczx7AMPXDCtkVtNrJ3QM";
+
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  /* ---------- 유틸 ---------- */
+  const fmtWon = (n) => Math.round(n || 0).toLocaleString('ko-KR') + '만원';
+  // 클릭/전환당 단가처럼 만원 단위로는 0으로 뭉개지는 작은 금액은 원 단위로 표시
+  const fmtWonSmall = (n) => Math.round((n || 0) * 10000).toLocaleString('ko-KR') + '원';
+  const fmtNum = (n) => Math.round(n || 0).toLocaleString('ko-KR');
+  const fmtPct = (n, d = 1) => (isFinite(n) ? n.toFixed(d) : '0.0') + '%';
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (m) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[m]));
+  }
+  function emptyMsg(t) { return `<div class="empty-msg">${escapeHtml(t)}</div>`; }
+
+  function aggregate(channels) {
+    const sum = (key) => channels.reduce((a, c) => a + (Number(c[key]) || 0), 0);
+    const spend = sum('spend');
+    const impressions = sum('impressions');
+    const clicks = sum('clicks');
+    const conversions = sum('conversions');
+    const revenue = sum('revenue');
+    return {
+      spend, impressions, clicks, conversions, revenue,
+      ctr: impressions ? (clicks / impressions) * 100 : 0,
+      cpc: clicks ? spend / clicks : 0,
+      cpa: conversions ? spend / conversions : 0,
+      roas: spend ? (revenue / spend) * 100 : 0,
+      cvr: clicks ? (conversions / clicks) * 100 : 0
+    };
+  }
+
+  function pickCurrentBudget(rows) {
+    if (!rows || !rows.length) return null;
+    const inProgress = rows.find(r => Number(r.days_passed) < Number(r.days_total));
+    return inProgress || rows[rows.length - 1];
+  }
+
+  function isConfigured() {
+    return SUPABASE_URL !== "https://your-project.supabase.co" &&
+           SUPABASE_ANON_KEY !== "your-anon-key" &&
+           SUPABASE_URL.startsWith('http');
+  }
+
+  function showStatus(html) {
+    const el = document.getElementById('statusMsg');
+    el.innerHTML = html;
+    el.style.display = 'block';
+  }
+  function hideStatus() {
+    document.getElementById('statusMsg').style.display = 'none';
+  }
+  function showError(e) {
+    console.error(e);
+    showStatus(`⚠️ 데이터를 불러오지 못했어요. Supabase URL/키, 테이블명·컬럼명을 확인해 주세요.
+      <span class="status-detail">${escapeHtml(e?.message || e)}</span>`);
+  }
+
+  /* ---------- 카드 ---------- */
+  function renderCards(channels, budgetRows) {
+    const agg = aggregate(channels);
+    const cur = pickCurrentBudget(budgetRows);
+
+    document.getElementById('cardSpendValue').textContent = fmtWon(agg.spend);
+    if (cur && Number(cur.budget) > 0) {
+      const pct = Math.min((agg.spend / cur.budget) * 100, 100);
+      document.getElementById('cardSpendBarFill').style.width = pct.toFixed(1) + '%';
+      document.getElementById('cardSpendSub').textContent =
+        `예산 ${fmtWon(cur.budget)} 중 ${fmtPct((agg.spend / cur.budget) * 100)} 소진`;
+    } else {
+      document.getElementById('cardSpendSub').textContent = '예산 데이터 없음';
+    }
+
+    document.getElementById('cardRoasValue').textContent = fmtPct(agg.roas);
+    document.getElementById('cardCacValue').textContent = fmtWonSmall(agg.cpa);
+    document.getElementById('cardConvValue').textContent = fmtNum(agg.conversions);
+    document.getElementById('cardConvSub').textContent = `CVR ${fmtPct(agg.cvr)}`;
+  }
+
+  /* ---------- 채널 테이블 ---------- */
+  function renderTable(channels) {
+    const tbody = document.getElementById('channelTbody');
+    if (!channels || !channels.length) {
+      tbody.innerHTML = `<tr><td colspan="9">${emptyMsg('채널 데이터가 없어요')}</td></tr>`;
+      return;
+    }
+
+    const rows = channels.map(c => {
+      const spend = Number(c.spend) || 0;
+      const impressions = Number(c.impressions) || 0;
+      const clicks = Number(c.clicks) || 0;
+      const conversions = Number(c.conversions) || 0;
+      const revenue = Number(c.revenue) || 0;
+      return {
+        channel: c.channel,
+        spend, impressions, clicks, conversions,
+        ctr: impressions ? (clicks / impressions) * 100 : 0,
+        cpc: clicks ? spend / clicks : 0,
+        cpa: conversions ? spend / conversions : 0,
+        roas: spend ? (revenue / spend) * 100 : 0
+      };
+    });
+
+    const maxRoas = Math.max(...rows.map(r => r.roas), 1);
+
+    const bodyHtml = rows.map(r => `
+      <tr>
+        <td class="td-channel">${escapeHtml(r.channel)}</td>
+        <td>${fmtWon(r.spend)}</td>
+        <td>${fmtNum(r.impressions)}</td>
+        <td>${fmtNum(r.clicks)}</td>
+        <td>${fmtPct(r.ctr)}</td>
+        <td>${fmtWonSmall(r.cpc)}</td>
+        <td>${fmtNum(r.conversions)}</td>
+        <td>${fmtWonSmall(r.cpa)}</td>
+        <td class="td-roas">
+          <div class="roas-cell">
+            <span>${fmtPct(r.roas)}</span>
+            <div class="roas-bar-track">
+              <div class="roas-bar-fill" style="width:${Math.min((r.roas / maxRoas) * 100, 100).toFixed(1)}%"></div>
+            </div>
+          </div>
+        </td>
+      </tr>`).join('');
+
+    const t = aggregate(channels);
+    const totalRow = `
+      <tr class="tr-total">
+        <td>합계</td>
+        <td>${fmtWon(t.spend)}</td>
+        <td>${fmtNum(t.impressions)}</td>
+        <td>${fmtNum(t.clicks)}</td>
+        <td>${fmtPct(t.ctr)}</td>
+        <td>${fmtWonSmall(t.cpc)}</td>
+        <td>${fmtNum(t.conversions)}</td>
+        <td>${fmtWonSmall(t.cpa)}</td>
+        <td class="td-roas">
+          <div class="roas-cell">
+            <span>${fmtPct(t.roas)}</span>
+            <div class="roas-bar-track"><div class="roas-bar-fill" style="width:100%"></div></div>
+          </div>
+        </td>
+      </tr>`;
+
+    tbody.innerHTML = bodyHtml + totalRow;
+  }
+
+  /* ---------- 광고비+ROAS 콤보 차트 (순수 SVG) ---------- */
+  function renderComboChart(rows) {
+    const wrap = document.getElementById('comboChart');
+    if (!rows || !rows.length) {
+      wrap.innerHTML = emptyMsg('월별 데이터가 없어요');
+      return;
+    }
+
+    const W = 640, H = 260, padL = 46, padR = 14, padT = 18, padB = 30;
+    const chartW = W - padL - padR;
+    const chartH = H - padT - padB;
+    const n = rows.length;
+    const slot = chartW / n;
+    const barW = Math.max(slot * 0.5, 8);
+
+    const maxSpend = Math.max(...rows.map(r => Number(r.spend) || 0), 1);
+    const maxRoas = Math.max(...rows.map(r => Number(r.roas) || 0), 1);
+
+    let bars = '', labels = '';
+    const points = [];
+
+    rows.forEach((r, i) => {
+      const spend = Number(r.spend) || 0;
+      const roas = Number(r.roas) || 0;
+      const cx = padL + slot * i + slot / 2;
+
+      const bh = (spend / maxSpend) * chartH;
+      const by = padT + chartH - bh;
+      const bx = cx - barW / 2;
+      bars += `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="4" fill="var(--accent-soft-strong)"></rect>`;
+
+      const ly = padT + chartH - (roas / maxRoas) * chartH;
+      points.push([cx, ly]);
+
+      labels += `<text x="${cx.toFixed(1)}" y="${H - 8}" text-anchor="middle" class="axis-label">${escapeHtml(r.month)}</text>`;
+    });
+
+    const linePath = 'M ' + points.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L ');
+    const dots = points.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="4" class="line-dot"></circle>`).join('');
+
+    wrap.innerHTML = `
+      <svg viewBox="0 0 ${W} ${H}" class="combo-svg" preserveAspectRatio="xMidYMid meet">
+        <line x1="${padL}" y1="${padT + chartH}" x2="${W - padR}" y2="${padT + chartH}" class="axis-line"></line>
+        ${bars}
+        <path d="${linePath}" class="roas-line" fill="none"></path>
+        ${dots}
+        ${labels}
+      </svg>`;
+  }
+
+  /* ---------- 예산 소진 페이싱 ---------- */
+  function renderPacing(channels, budgetRows) {
+    const el = document.getElementById('pacingBody');
+    const cur = pickCurrentBudget(budgetRows);
+    if (!cur) {
+      el.innerHTML = emptyMsg('예산 데이터가 없어요');
+      return;
+    }
+
+    const spend = aggregate(channels).spend;
+    const budget = Number(cur.budget) || 0;
+    const daysTotal = Number(cur.days_total) || 0;
+    const daysPassed = Number(cur.days_passed) || 0;
+
+    const pctBudget = budget ? (spend / budget) * 100 : 0;
+    const pctDays = daysTotal ? (daysPassed / daysTotal) * 100 : 0;
+    const diff = pctBudget - pctDays;
+    const dailyAvg = daysPassed > 0 ? spend / daysPassed : 0;
+    const remaining = budget - spend;
+
+    let paceMsg;
+    if (Math.abs(diff) < 0.5) {
+      paceMsg = '경과 속도와 거의 비슷하게 소진하고 있어요.';
+    } else if (diff > 0) {
+      paceMsg = `경과보다 <strong>${diff.toFixed(1)}%p 빠르게</strong> 소진 중이에요.`;
+    } else {
+      paceMsg = `경과보다 <strong>${Math.abs(diff).toFixed(1)}%p 느리게</strong> 소진 중이에요.`;
+    }
+
+    let exhaustMsg;
+    if (dailyAvg > 0 && budget > 0) {
+      const exhaustDay = Math.ceil(budget / dailyAvg);
+      if (exhaustDay <= daysTotal) {
+        exhaustMsg = `이 속도라면 <strong>${exhaustDay}일째</strong>에 예산이 바닥날 것으로 예상돼요.`;
+      } else {
+        exhaustMsg = `이 속도라면 예산 소진 없이 월말(${daysTotal}일)까지 집행 가능할 것으로 예상돼요.`;
+      }
+    } else {
+      exhaustMsg = '집행 데이터가 아직 없어 소진 예측이 어려워요.';
+    }
+
+    el.innerHTML = `
+      <div class="pace-row">
+        <div class="pace-label"><span>예산 소진</span><span>${fmtPct(pctBudget)}</span></div>
+        <div class="pace-track"><div class="pace-fill" style="width:${Math.min(pctBudget, 100).toFixed(1)}%"></div></div>
+      </div>
+      <div class="pace-row">
+        <div class="pace-label"><span>기간 경과</span><span>${fmtPct(pctDays)}</span></div>
+        <div class="pace-track"><div class="pace-fill pace-fill-muted" style="width:${Math.min(pctDays, 100).toFixed(1)}%"></div></div>
+      </div>
+      <p class="pace-msg">${paceMsg}</p>
+      <p class="pace-msg">${exhaustMsg}</p>
+      <div class="pace-stats">
+        <div><span class="stat-label">집행</span><span class="stat-value">${fmtWon(spend)}</span></div>
+        <div><span class="stat-label">잔여</span><span class="stat-value">${fmtWon(remaining)}</span></div>
+        <div><span class="stat-label">일 평균</span><span class="stat-value">${fmtWon(dailyAvg)}</span></div>
+      </div>`;
+  }
+
+  /* ---------- 데이터 로드 ---------- */
+  async function loadDashboard() {
+    if (!isConfigured()) {
+      showStatus('⚙️ 코드 상단의 SUPABASE_URL과 SUPABASE_ANON_KEY를 본인의 Supabase 정보로 바꿔주세요.');
+      return;
+    }
+    try {
+      const [chRes, moRes, buRes] = await Promise.all([
+        db.from('marketing_channel').select('*'),
+        db.from('marketing_monthly').select('*').order('sort_order', { ascending: true }),
+        db.from('marketing_budget').select('*')
+      ]);
+      if (chRes.error) throw chRes.error;
+      if (moRes.error) throw moRes.error;
+      if (buRes.error) throw buRes.error;
+
+      const channels = chRes.data || [];
+      const monthly = moRes.data || [];
+      const budgetRows = buRes.data || [];
+
+      hideStatus();
+      renderCards(channels, budgetRows);
+      renderTable(channels);
+      renderComboChart(monthly);
+      renderPacing(channels, budgetRows);
+    } catch (e) {
+      showError(e);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', loadDashboard);
+</script>
+</body>
+</html>

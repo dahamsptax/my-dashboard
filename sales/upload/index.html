@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>영업 대시보드 · 엑셀 업로드</title>
+<link rel="stylesheet" as="style" crossorigin
+  href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<style>
+  :root {
+    --color-bg: #ffffff;
+    --color-surface: #ffffff;
+    --color-border: #E7EAF0;
+    --color-text: #10151F;
+    --color-text-muted: #6B7280;
+    --color-primary: #2454E0;
+    --color-primary-dark: #16308C;
+    --color-primary-soft: #EAF0FE;
+    --good: #0ca30c;
+    --critical: #d03b3b;
+    --radius: 14px;
+    --shadow-card: 0 1px 2px rgba(16,21,31,.04), 0 8px 24px -12px rgba(16,21,31,.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--color-bg); color: var(--color-text);
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 880px; margin: 0 auto; padding: 32px 24px 60px; }
+  .topnav { margin-bottom: 16px; display: flex; gap: 14px; }
+  .topnav a { color: var(--color-text-muted); text-decoration: none; font-size: 13px; font-weight: 600; }
+  .topnav a:hover { color: var(--color-text); }
+  h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 4px; }
+  .subtitle { font-size: 13px; color: var(--color-text-muted); margin: 0 0 24px; }
+  .card {
+    background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: var(--radius); box-shadow: var(--shadow-card); padding: 22px 24px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
+  .card p.hint { font-size: 12.5px; color: var(--color-text-muted); margin: 0 0 16px; line-height: 1.6; }
+  .dropzone {
+    border: 2px dashed var(--color-border); border-radius: 12px; padding: 36px 20px;
+    text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--color-primary); background: var(--color-primary-soft); }
+  .dropzone .big { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  .dropzone .small { font-size: 12px; color: var(--color-text-muted); }
+  input[type=file] { display: none; }
+  .status { font-size: 13px; margin-top: 14px; padding: 10px 14px; border-radius: 8px; display: none; }
+  .status.show { display: block; }
+  .status.info { background: var(--color-primary-soft); color: var(--color-primary-dark); }
+  .status.error { background: #fbe9e7; color: var(--critical); }
+  .status.ok { background: #e4f4e1; color: var(--good); }
+  table.preview { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.preview th, table.preview td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--color-border); }
+  table.preview th { color: var(--color-text-muted); font-weight: 600; font-size: 12px; }
+  table.preview td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 18px; }
+  .kpi-box { border: 1px solid var(--color-border); border-radius: 10px; padding: 12px 14px; }
+  .kpi-box .l { font-size: 11.5px; color: var(--color-text-muted); margin-bottom: 6px; }
+  .kpi-box .v { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .kpi-box .v.small { font-size: 14px; }
+  .btn {
+    border: none; background: var(--color-primary); color: #fff; font-weight: 700; font-size: 13.5px;
+    padding: 11px 22px; border-radius: 999px; cursor: pointer; font-family: inherit;
+  }
+  .btn:hover { background: var(--color-primary-dark); }
+  .btn:disabled { background: var(--color-border); color: var(--color-text-muted); cursor: not-allowed; }
+  .btn.secondary { background: #fff; color: var(--color-primary); border: 1px solid var(--color-border); }
+  .section-title { font-size: 13px; font-weight: 700; margin: 18px 0 8px; }
+  .actions { display: flex; gap: 10px; margin-top: 18px; }
+  .funnel-mini { display: flex; gap: 8px; flex-wrap: wrap; }
+  .funnel-mini span { font-size: 12.5px; background: var(--color-primary-soft); color: var(--color-primary-dark); padding: 5px 10px; border-radius: 999px; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topnav"><a href="/">← 대시보드 허브</a><a href="/sales/">← 영업 대시보드</a></div>
+  <h1>엑셀 업로드</h1>
+  <p class="subtitle">「거래처별 매출 증감율」 원본 엑셀을 올리면 8개 지표를 자동 계산해서 미리 보여드립니다. 확인 후 저장을 눌러야 대시보드에 반영됩니다.</p>
+
+  <div class="card">
+    <h2>1. 파일 선택</h2>
+    <p class="hint">원본 형식 그대로(예: "2607 대상국제교역_거래처별 매출증감율7월증감.xlsx") 업로드해주세요. "거래처별 매출 증감율" 시트에서 거래처명 / 지역구분 / 회수상태 / 미수잔액 / [전달]매출 / [이번달]매출 / 증감율 열을 자동으로 찾습니다.</p>
+    <div class="dropzone" id="dropzone">
+      <div class="big">클릭하거나 파일을 끌어다 놓으세요</div>
+      <div class="small">.xlsx 파일 1개</div>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx" />
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="card" id="previewCard" style="display:none;">
+    <h2>2. 계산 결과 미리보기</h2>
+    <p class="hint">저장 전 숫자를 확인해주세요. 저장 시 이번 달 매출/목표/객단가/평균증감율, 거래처 활성화 퍼널, 매출증감율·매출액 상위 거래처가 함께 갱신됩니다.</p>
+    <div class="kpi-row" id="kpiPreview"></div>
+
+    <div class="section-title">거래처 활성화 퍼널</div>
+    <div class="funnel-mini" id="funnelPreview"></div>
+
+    <div class="section-title">매출증감율 상위 거래처 (Top 5)</div>
+    <table class="preview"><thead><tr><th>거래처</th><th class="num">전달</th><th class="num">이번달</th><th class="num">증감율</th></tr></thead><tbody id="gainerPreview"></tbody></table>
+
+    <div class="section-title">매출액 상위 거래처 (Top 5)</div>
+    <table class="preview"><thead><tr><th>거래처</th><th class="num">이번달 매출액</th></tr></thead><tbody id="sellerPreview"></tbody></table>
+
+    <div class="actions">
+      <button class="btn" id="saveBtn">Supabase에 저장</button>
+      <button class="btn secondary" id="cancelBtn">취소</button>
+    </div>
+    <div class="status" id="saveStatus"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const { createClient } = supabase;
+  const db = createClient(
+    "https://mcypzsammvrthfqihkwy.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeXB6c2FtbXZydGhmcWloa3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzOTk1NzcsImV4cCI6MjEwMTk3NTU3N30.oUcfA-F0S9QHgpK56qvB0-aczx7AMPXDCtkVtNrJ3QM"
+  );
+
+  const fmt = (n) => Math.round(n || 0).toLocaleString('ko-KR');
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const statusEl = document.getElementById('status');
+  const previewCard = document.getElementById('previewCard');
+  let computed = null; // holds the last computed result, ready to save
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault(); dropzone.classList.remove('drag');
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+  function showStatus(el, msg, kind) {
+    el.textContent = msg;
+    el.className = 'status show ' + kind;
+  }
+
+  function handleFile(file) {
+    showStatus(statusEl, `"${file.name}" 읽는 중...`, 'info');
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+        const sheetName = wb.SheetNames.find(n => n.includes('증감율')) || wb.SheetNames[0];
+        const ws = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+        const result = computeMetrics(rows, file.name);
+        computed = result;
+        renderPreview(result);
+        showStatus(statusEl, `"${file.name}" 계산 완료 (${sheetName} 시트, ${result.totalCustomers.toLocaleString()}개 행)`, 'ok');
+        previewCard.style.display = 'block';
+      } catch (err) {
+        console.error(err);
+        showStatus(statusEl, '계산 중 오류: ' + (err.message || String(err)), 'error');
+        previewCard.style.display = 'none';
+      }
+    };
+    reader.onerror = () => showStatus(statusEl, '파일을 읽지 못했습니다.', 'error');
+    reader.readAsArrayBuffer(file);
+  }
+
+  // ---- core calculation, ported 1:1 from the Python analysis used to build the dashboard ----
+  function computeMetrics(rows, fileName) {
+    const header = rows[0].map(h => (h == null ? '' : String(h).trim()));
+    const col = (name) => header.indexOf(name);
+
+    const idxName = col('거래처명');
+    const idxRegion = col('지역구분');
+    const idxStatus = col('회수상태');
+    const idxRecv = col('미수잔액');
+    const idxRate = col('증감율');
+    if (idxName === -1 || idxStatus === -1 || idxRate === -1) {
+      throw new Error('필수 열(거래처명/회수상태/증감율)을 찾지 못했습니다. 원본 시트 형식을 확인해주세요.');
+    }
+    // two "N월매출" columns: first = 전달, second = 이번달
+    const salesCols = [];
+    header.forEach((h, i) => { if (/^\d{1,2}월매출$/.test(h)) salesCols.push({ i, label: h }); });
+    if (salesCols.length < 2) throw new Error('"N월매출" 형식의 매출 열을 2개 찾지 못했습니다.');
+    const prevCol = salesCols[0], currCol = salesCols[1];
+    const prevMonthLabel = prevCol.label.replace('매출', '');
+    const currMonthLabel = currCol.label.replace('매출', '');
+
+    const dataRows = rows.slice(1).filter(r => r && r[idxName]);
+    let currSum = 0, prevSum = 0;
+    const numericRates = [];
+    let newCount = 0;
+    let activeCount = 0; // curr > 0
+    let growCount = 0;   // numeric rate > 0
+    let healthyGrowCount = 0; // status good AND (numeric rate>0 OR new)
+    const parsed = [];
+
+    dataRows.forEach(r => {
+      const name = r[idxName];
+      const status = r[idxStatus];
+      const prev = Number(r[prevCol.i]) || 0;
+      const curr = Number(r[currCol.i]) || 0;
+      const rateRaw = r[idxRate];
+      const isNumericRate = typeof rateRaw === 'number';
+      const isNew = rateRaw === '신규' || (prev === 0 && curr > 0);
+      currSum += curr; prevSum += prev;
+      if (curr > 0) activeCount++;
+      if (isNumericRate) { numericRates.push(rateRaw); if (rateRaw > 0) growCount++; }
+      if (isNew) newCount++;
+      const growing = (isNumericRate && rateRaw > 0) || isNew;
+      if (status === '양호' && growing) healthyGrowCount++;
+      parsed.push({ name, status, prev, curr, rate: isNumericRate ? rateRaw : (isNew ? '신규' : rateRaw) });
+    });
+
+    const totalCustomers = dataRows.length;
+    const target = prevSum * 1.05;
+    const avgRate = numericRates.length ? (numericRates.reduce((a, b) => a + b, 0) / numericRates.length) * 100 : 0;
+
+    // funnel: 전체 → 매출발생 → 매출증가(신규 포함) → 우수(양호+증가)
+    const funnel = [
+      { stage: '전체 거래처', count: totalCustomers },
+      { stage: '이번달 매출발생', count: activeCount },
+      { stage: '전월대비 매출증가', count: growCount + newCount },
+      { stage: '우수 거래처(양호+증가)', count: healthyGrowCount },
+    ];
+
+    // top gainers: numeric rate, prev >= 500,000, desc by rate
+    const gainers = parsed
+      .filter(r => typeof r.rate === 'number' && r.prev >= 500000)
+      .sort((a, b) => b.rate - a.rate)
+      .slice(0, 5)
+      .map(r => ({ name: r.name, prev: r.prev, curr: r.curr, rate: r.rate * 100 }));
+
+    // top sellers: desc by curr
+    const sellers = [...parsed].sort((a, b) => b.curr - a.curr).slice(0, 5)
+      .map(r => ({ name: r.name, amount: r.curr }));
+
+    return {
+      fileName,
+      prevMonthLabel, currMonthLabel,
+      currSum, prevSum, target,
+      totalCustomers, avgRate,
+      funnel, gainers, sellers,
+      avgDeal: totalCustomers > 0 ? currSum / totalCustomers : 0,
+    };
+  }
+
+  function renderPreview(r) {
+    const achievement = r.target > 0 ? (r.currSum / r.target) * 100 : 0;
+    document.getElementById('kpiPreview').innerHTML = `
+      <div class="kpi-box"><div class="l">① 이번 달 매출 (${r.currMonthLabel})</div><div class="v">${fmt(r.currSum/10000)}만원</div></div>
+      <div class="kpi-box"><div class="l">② 목표 (전달×105%)</div><div class="v">${fmt(r.target/10000)}만원</div></div>
+      <div class="kpi-box"><div class="l">③ 객단가</div><div class="v small">${fmt(r.avgDeal/10000)}만원</div></div>
+      <div class="kpi-box"><div class="l">④ 평균증감율</div><div class="v small" style="color:${r.avgRate>=0?'var(--good)':'var(--critical)'}">${r.avgRate>=0?'+':''}${r.avgRate.toFixed(1)}%</div></div>
+    `;
+    document.getElementById('funnelPreview').innerHTML = r.funnel.map(f => `<span>${f.stage}: ${f.count.toLocaleString()}건</span>`).join('') +
+      `<span>목표 달성률: ${achievement.toFixed(1)}%</span>`;
+    document.getElementById('gainerPreview').innerHTML = r.gainers.map(g => `
+      <tr><td>${escapeHtml(g.name)}</td><td class="num">${fmt(g.prev)}원</td><td class="num">${fmt(g.curr)}원</td><td class="num" style="color:var(--good)">+${g.rate.toFixed(1)}%</td></tr>
+    `).join('') || '<tr><td colspan="4">조건(전달 매출 50만원 이상)을 만족하는 거래처가 없습니다.</td></tr>';
+    document.getElementById('sellerPreview').innerHTML = r.sellers.map(s => `
+      <tr><td>${escapeHtml(s.name)}</td><td class="num">${fmt(s.amount/10000)}만원</td></tr>
+    `).join('');
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  document.getElementById('cancelBtn').addEventListener('click', () => {
+    computed = null;
+    previewCard.style.display = 'none';
+    fileInput.value = '';
+  });
+
+  document.getElementById('saveBtn').addEventListener('click', async () => {
+    if (!computed) return;
+    const saveStatus = document.getElementById('saveStatus');
+    showStatus(saveStatus, 'Supabase에 저장하는 중...', 'info');
+    try {
+      await saveToSupabase(computed);
+      showStatus(saveStatus, '저장 완료! 영업 대시보드에서 새로고침하면 바로 반영됩니다.', 'ok');
+    } catch (err) {
+      console.error(err);
+      showStatus(saveStatus, '저장 실패: ' + (err.message || String(err)) +
+        ' — Supabase 쓰기 권한(RLS 정책)이 열려 있는지 확인이 필요할 수 있습니다.', 'error');
+    }
+  });
+
+  async function saveToSupabase(r) {
+    // 1) sales_monthly: update this month's row if it exists, otherwise append a new one
+    const { data: existingMonthly, error: monthlyReadErr } = await db.from('sales_monthly').select('*').order('sort_order', { ascending: true });
+    if (monthlyReadErr) throw monthlyReadErr;
+    const monthRow = {
+      month: r.currMonthLabel,
+      revenue: Math.round(r.currSum / 10000),
+      target: Math.round(r.target / 10000),
+      total_customers: r.totalCustomers,
+      avg_growth_rate: Math.round(r.avgRate * 10) / 10,
+    };
+    const last = existingMonthly[existingMonthly.length - 1];
+    if (last && last.month === r.currMonthLabel) {
+      const { error } = await db.from('sales_monthly').update(monthRow).eq('id', last.id);
+      if (error) throw error;
+    } else {
+      const nextSort = last ? last.sort_order + 1 : 1;
+      const { error } = await db.from('sales_monthly').insert({ ...monthRow, sort_order: nextSort });
+      if (error) throw error;
+      // keep only the most recent 7 months
+      const { data: all } = await db.from('sales_monthly').select('id,sort_order').order('sort_order', { ascending: true });
+      if (all && all.length > 7) {
+        const toDelete = all.slice(0, all.length - 7).map(x => x.id);
+        await db.from('sales_monthly').delete().in('id', toDelete);
+      }
+    }
+
+    // 2) sales_pipeline: replace the 4 funnel rows
+    const { error: delPipeErr } = await db.from('sales_pipeline').delete().gte('id', 0);
+    if (delPipeErr) throw delPipeErr;
+    const pipelineRows = r.funnel.map((f, i) => ({ sort_order: i + 1, stage: f.stage, count: f.count }));
+    const { error: insPipeErr } = await db.from('sales_pipeline').insert(pipelineRows);
+    if (insPipeErr) throw insPipeErr;
+
+    // 3) sales_rank: replace gainer + seller rows
+    const { error: delRankErr } = await db.from('sales_rank').delete().gte('id', 0);
+    if (delRankErr) throw delRankErr;
+    const gainerRows = r.gainers.map(g => ({ kind: 'gainer', name: g.name, amount: Math.round(g.curr / 10000), rate: Math.round(g.rate * 10) / 10 }));
+    const sellerRows = r.sellers.map(s => ({ kind: 'seller', name: s.name, amount: Math.round(s.amount / 10000), rate: null }));
+    const { error: insRankErr } = await db.from('sales_rank').insert([...gainerRows, ...sellerRows]);
+    if (insRankErr) throw insRankErr;
+  }
+</script>
+</body>
+</html>

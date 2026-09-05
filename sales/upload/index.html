@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>영업 대시보드 · 엑셀 업로드</title>
+<title>영업 대시보드 · 매출자료 업로드</title>
 <link rel="stylesheet" as="style" crossorigin
   href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
 <style>
@@ -32,22 +32,25 @@
   .topnav a { color: var(--color-text-muted); text-decoration: none; font-size: 13px; font-weight: 600; }
   .topnav a:hover { color: var(--color-text); }
   h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 4px; }
-  .subtitle { font-size: 13px; color: var(--color-text-muted); margin: 0 0 24px; }
+  .subtitle { font-size: 13px; color: var(--color-text-muted); margin: 0 0 24px; line-height: 1.6; }
   .card {
     background: var(--color-surface); border: 1px solid var(--color-border);
     border-radius: var(--radius); box-shadow: var(--shadow-card); padding: 22px 24px; margin-bottom: 16px;
   }
   .card h2 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
   .card p.hint { font-size: 12.5px; color: var(--color-text-muted); margin: 0 0 16px; line-height: 1.6; }
+  .drop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .dropzone {
-    border: 2px dashed var(--color-border); border-radius: 12px; padding: 36px 20px;
-    text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+    border: 2px dashed var(--color-border); border-radius: 12px; padding: 26px 16px;
+    text-align: center; cursor: pointer; transition: border-color .15s, background .15s; position: relative;
   }
   .dropzone:hover, .dropzone.drag { border-color: var(--color-primary); background: var(--color-primary-soft); }
-  .dropzone .big { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
-  .dropzone .small { font-size: 12px; color: var(--color-text-muted); }
+  .dropzone.filled { border-style: solid; border-color: var(--good); background: #e4f4e1; }
+  .dropzone .role { font-size: 11.5px; font-weight: 700; color: var(--color-primary); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+  .dropzone .big { font-size: 13.5px; font-weight: 700; margin-bottom: 4px; }
+  .dropzone .small { font-size: 11.5px; color: var(--color-text-muted); }
   input[type=file] { display: none; }
-  .status { font-size: 13px; margin-top: 14px; padding: 10px 14px; border-radius: 8px; display: none; }
+  .status { font-size: 13px; margin-top: 14px; padding: 10px 14px; border-radius: 8px; display: none; line-height: 1.6; }
   .status.show { display: block; }
   .status.info { background: var(--color-primary-soft); color: var(--color-primary-dark); }
   .status.error { background: #fbe9e7; color: var(--critical); }
@@ -72,31 +75,46 @@
   .actions { display: flex; gap: 10px; margin-top: 18px; }
   .funnel-mini { display: flex; gap: 8px; flex-wrap: wrap; }
   .funnel-mini span { font-size: 12.5px; background: var(--color-primary-soft); color: var(--color-primary-dark); padding: 5px 10px; border-radius: 999px; font-weight: 600; }
+  @media (max-width: 560px) {
+    .drop-grid, .kpi-row { grid-template-columns: 1fr 1fr; }
+  }
 </style>
 </head>
 <body>
 <div class="page">
   <div class="topnav"><a href="/">← 대시보드 허브</a><a href="/sales/">← 영업 대시보드</a></div>
-  <h1>엑셀 업로드</h1>
-  <p class="subtitle">「거래처별 매출 증감율」 원본 엑셀을 올리면 8개 지표를 자동 계산해서 미리 보여드립니다. 확인 후 저장을 눌러야 대시보드에 반영됩니다.</p>
+  <h1>매출자료 업로드</h1>
+  <p class="subtitle">
+    회계 프로그램에서 뽑은 "매출 부가세 집계표" CSV 2개(이번 달, 전달)를 올리면 거래처별 매출을 대조해서
+    8개 지표를 자동 계산합니다. 확인 후 저장을 눌러야 대시보드에 반영돼요.
+  </p>
 
   <div class="card">
     <h2>1. 파일 선택</h2>
-    <p class="hint">원본 형식 그대로(예: "2607 대상국제교역_거래처별 매출증감율7월증감.xlsx") 업로드해주세요. "거래처별 매출 증감율" 시트에서 거래처명 / 지역구분 / 회수상태 / 미수잔액 / [전달]매출 / [이번달]매출 / 증감율 열을 자동으로 찾습니다.</p>
-    <div class="dropzone" id="dropzone">
-      <div class="big">클릭하거나 파일을 끌어다 놓으세요</div>
-      <div class="small">.xlsx 파일 1개</div>
+    <p class="hint"><b>이번 달 파일은 필수</b>이고, 전달 파일은 <b>선택</b>입니다 — 전달 파일을 넣지 않으면 이전에 저장해둔 전달 거래처별 매출을 자동으로 불러와 비교합니다 (처음 몇 달은 넣어주시고, 이후부터는 이번 달 파일 1개만 올리시면 됩니다). "거래처, 사업자번호, 금액" 열이 있는 매출 부가세 집계표 형식이면 됩니다.</p>
+    <div class="drop-grid">
+      <div class="dropzone" id="dropzoneA" data-slot="A">
+        <div class="role">이번 달 파일 (필수)</div>
+        <div class="big">클릭하거나 끌어다 놓기</div>
+        <div class="small" id="labelA">.csv</div>
+      </div>
+      <div class="dropzone" id="dropzoneB" data-slot="B">
+        <div class="role">전달 파일 (선택)</div>
+        <div class="big">클릭하거나 끌어다 놓기</div>
+        <div class="small" id="labelB">없으면 저장된 데이터 자동 사용</div>
+      </div>
     </div>
-    <input type="file" id="fileInput" accept=".xlsx" />
+    <input type="file" id="fileInputA" accept=".csv" />
+    <input type="file" id="fileInputB" accept=".csv" />
     <div class="status" id="status"></div>
   </div>
 
   <div class="card" id="previewCard" style="display:none;">
     <h2>2. 계산 결과 미리보기</h2>
-    <p class="hint">저장 전 숫자를 확인해주세요. 저장 시 이번 달 매출/목표/객단가/평균증감율, 거래처 활성화 퍼널, 매출증감율·매출액 상위 거래처가 함께 갱신됩니다.</p>
+    <p class="hint" id="previewMeta"></p>
     <div class="kpi-row" id="kpiPreview"></div>
 
-    <div class="section-title">거래처 활성화 퍼널</div>
+    <div class="section-title">거래처 활성화 퍼널 (3단계)</div>
     <div class="funnel-mini" id="funnelPreview"></div>
 
     <div class="section-title">매출증감율 상위 거래처 (Top 5)</div>
@@ -113,7 +131,6 @@
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   const { createClient } = supabase;
@@ -123,140 +140,210 @@
   );
 
   const fmt = (n) => Math.round(n || 0).toLocaleString('ko-KR');
-  const dropzone = document.getElementById('dropzone');
-  const fileInput = document.getElementById('fileInput');
   const statusEl = document.getElementById('status');
   const previewCard = document.getElementById('previewCard');
-  let computed = null; // holds the last computed result, ready to save
+  const slots = { A: null, B: null }; // { fileName, month, year, rows: Map(biz -> {name, amount}), sum }
+  let computed = null;
 
-  dropzone.addEventListener('click', () => fileInput.click());
-  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
-  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
-  dropzone.addEventListener('drop', (e) => {
-    e.preventDefault(); dropzone.classList.remove('drag');
-    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  ['A', 'B'].forEach((slot) => {
+    const zone = document.getElementById('dropzone' + slot);
+    const input = document.getElementById('fileInput' + slot);
+    zone.addEventListener('click', () => input.click());
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+    zone.addEventListener('drop', (e) => {
+      e.preventDefault(); zone.classList.remove('drag');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0], slot);
+    });
+    input.addEventListener('change', (e) => { if (e.target.files.length) handleFile(e.target.files[0], slot); });
   });
-  fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFile(e.target.files[0]); });
 
   function showStatus(el, msg, kind) {
     el.textContent = msg;
     el.className = 'status show ' + kind;
   }
 
-  function handleFile(file) {
+  function handleFile(file, slot) {
     showStatus(statusEl, `"${file.name}" 읽는 중...`, 'info');
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
-        const sheetName = wb.SheetNames.find(n => n.includes('증감율')) || wb.SheetNames[0];
-        const ws = wb.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
-        const result = computeMetrics(rows, file.name);
-        computed = result;
-        renderPreview(result);
-        showStatus(statusEl, `"${file.name}" 계산 완료 (${sheetName} 시트, ${result.totalCustomers.toLocaleString()}개 행)`, 'ok');
-        previewCard.style.display = 'block';
+        const text = new TextDecoder('euc-kr').decode(new Uint8Array(e.target.result));
+        const parsed = parseVatSummary(text, file.name);
+        slots[slot] = parsed;
+        const zone = document.getElementById('dropzone' + slot);
+        const label = document.getElementById('label' + slot);
+        zone.classList.add('filled');
+        label.textContent = `${parsed.monthLabel} (${parsed.year}) · ${parsed.rows.size.toLocaleString()}개 거래처 · ${file.name}`;
+        showStatus(statusEl, `"${file.name}" → ${parsed.monthLabel} 매출자료로 인식했습니다.`, 'ok');
+        attemptCompute();
       } catch (err) {
         console.error(err);
-        showStatus(statusEl, '계산 중 오류: ' + (err.message || String(err)), 'error');
-        previewCard.style.display = 'none';
+        showStatus(statusEl, `"${file.name}" 처리 중 오류: ` + (err.message || String(err)), 'error');
       }
     };
     reader.onerror = () => showStatus(statusEl, '파일을 읽지 못했습니다.', 'error');
     reader.readAsArrayBuffer(file);
   }
 
-  // ---- core calculation, ported 1:1 from the Python analysis used to build the dashboard ----
-  function computeMetrics(rows, fileName) {
-    const header = rows[0].map(h => (h == null ? '' : String(h).trim()));
-    const col = (name) => header.indexOf(name);
+  // ---- parse one "매출 부가세 집계표" CSV (cp949/euc-kr encoded) ----
+  function parseVatSummary(text, fileName) {
+    const lines = text.split(/\r?\n/);
+    // 기간 추출: 첫 줄 어딘가의 YYYY.MM.DD 형태에서 월을 읽는다
+    const dateMatch = text.match(/(\d{4})\.(\d{2})\.(\d{2})/);
+    if (!dateMatch) throw new Error('첫 줄에서 집계 기간(YYYY.MM.DD)을 찾지 못했습니다.');
+    const year = dateMatch[1];
+    const monthNum = parseInt(dateMatch[2], 10);
+    const monthLabel = `${monthNum}월`;
 
-    const idxName = col('거래처명');
-    const idxRegion = col('지역구분');
-    const idxStatus = col('회수상태');
-    const idxRecv = col('미수잔액');
-    const idxRate = col('증감율');
-    if (idxName === -1 || idxStatus === -1 || idxRate === -1) {
-      throw new Error('필수 열(거래처명/회수상태/증감율)을 찾지 못했습니다. 원본 시트 형식을 확인해주세요.');
+    // 헤더 행 찾기: 첫 칸이 "거래처"이고 "사업자번호"를 포함하는 행
+    let headerIdx = -1, header = null;
+    for (let i = 0; i < lines.length; i++) {
+      const cells = lines[i].split(',').map(c => c.trim());
+      if (cells[0] === '거래처' && cells.includes('사업자번호')) { headerIdx = i; header = cells; break; }
     }
-    // two "N월매출" columns: first = 전달, second = 이번달
-    const salesCols = [];
-    header.forEach((h, i) => { if (/^\d{1,2}월매출$/.test(h)) salesCols.push({ i, label: h }); });
-    if (salesCols.length < 2) throw new Error('"N월매출" 형식의 매출 열을 2개 찾지 못했습니다.');
-    const prevCol = salesCols[0], currCol = salesCols[1];
-    const prevMonthLabel = prevCol.label.replace('매출', '');
-    const currMonthLabel = currCol.label.replace('매출', '');
+    if (headerIdx === -1) throw new Error('"거래처/사업자번호" 헤더 행을 찾지 못했습니다.');
+    const idxName = header.indexOf('거래처');
+    const idxBiz = header.indexOf('사업자번호');
+    const idxAmount = header.indexOf('금액');
+    if (idxAmount === -1) throw new Error('"금액" 열을 찾지 못했습니다.');
 
-    const dataRows = rows.slice(1).filter(r => r && r[idxName]);
+    const rows = new Map(); // biz -> { name, amount }
+    for (let i = headerIdx + 1; i < lines.length; i++) {
+      const cells = lines[i].split(',').map(c => c.trim());
+      const name = cells[idxName];
+      if (!name || name === '총계') continue;
+      const biz = cells[idxBiz] || name; // 사업자번호가 없으면 이름으로 대체
+      const amount = Number(cells[idxAmount].replace(/[^\d-]/g, '')) || 0;
+      if (rows.has(biz)) {
+        rows.get(biz).amount += amount; // 같은 사업자번호가 여러 줄이면 합산
+      } else {
+        rows.set(biz, { name, amount });
+      }
+    }
+    if (!rows.size) throw new Error('데이터 행을 찾지 못했습니다.');
+    return { fileName, year, monthNum, monthLabel, rows };
+  }
+
+  // 이번 달 파일(A)은 필수, 전달 파일(B)은 선택 — 없으면 Supabase에 저장된 직전 달
+  // 거래처별 매출(sales_customer_monthly)을 자동으로 불러와 비교합니다.
+  async function attemptCompute() {
+    const curr = slots.A;
+    if (!curr) return;
+    let prev = slots.B;
+    let hasPrevData = true;
+    let prevSource = '업로드한 전달 파일';
+
+    if (!prev) {
+      showStatus(statusEl, '전달 파일이 없어 저장된 데이터에서 전달 매출을 찾는 중...', 'info');
+      const prevMonthNum = curr.monthNum - 1;
+      if (prevMonthNum >= 1) {
+        try {
+          const { data, error } = await db.from('sales_customer_monthly')
+            .select('biz,name,amount')
+            .eq('year', Number(curr.year))
+            .eq('month_num', prevMonthNum);
+          if (error) throw error;
+          if (data && data.length) {
+            const rowsMap = new Map();
+            data.forEach(r => rowsMap.set(r.biz, { name: r.name, amount: r.amount }));
+            prev = { year: curr.year, monthNum: prevMonthNum, monthLabel: `${prevMonthNum}월`, rows: rowsMap };
+            prevSource = `저장된 ${prevMonthNum}월 데이터 (${data.length.toLocaleString()}개 거래처)`;
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+      if (!prev) {
+        hasPrevData = false;
+        prev = { year: curr.year, monthNum: prevMonthNum, monthLabel: prevMonthNum >= 1 ? `${prevMonthNum}월` : '(없음)', rows: new Map() };
+        prevSource = '없음 — 이번 달이 첫 등록 달로 처리됩니다';
+      }
+    }
+
+    try {
+      computed = computeMetrics(prev, curr, hasPrevData);
+      computed.prevSource = prevSource;
+      renderPreview(computed);
+      previewCard.style.display = 'block';
+      showStatus(statusEl, `계산 완료 (전달 데이터 출처: ${prevSource})`, hasPrevData ? 'ok' : 'error');
+    } catch (err) {
+      console.error(err);
+      showStatus(statusEl, '계산 중 오류: ' + (err.message || String(err)), 'error');
+    }
+  }
+
+  // ---- core calculation: compare curr vs prev by 사업자번호 ----
+  function computeMetrics(prev, curr, hasPrevData) {
+    const allBiz = new Set([...prev.rows.keys(), ...curr.rows.keys()]);
     let currSum = 0, prevSum = 0;
+    let activeCount = 0, growCount = 0, newCount = 0;
     const numericRates = [];
-    let newCount = 0;
-    let activeCount = 0; // curr > 0
-    let growCount = 0;   // numeric rate > 0
-    let healthyGrowCount = 0; // status good AND (numeric rate>0 OR new)
     const parsed = [];
 
-    dataRows.forEach(r => {
-      const name = r[idxName];
-      const status = r[idxStatus];
-      const prev = Number(r[prevCol.i]) || 0;
-      const curr = Number(r[currCol.i]) || 0;
-      const rateRaw = r[idxRate];
-      const isNumericRate = typeof rateRaw === 'number';
-      const isNew = rateRaw === '신규' || (prev === 0 && curr > 0);
-      currSum += curr; prevSum += prev;
-      if (curr > 0) activeCount++;
-      if (isNumericRate) { numericRates.push(rateRaw); if (rateRaw > 0) growCount++; }
-      if (isNew) newCount++;
-      const growing = (isNumericRate && rateRaw > 0) || isNew;
-      if (status === '양호' && growing) healthyGrowCount++;
-      parsed.push({ name, status, prev, curr, rate: isNumericRate ? rateRaw : (isNew ? '신규' : rateRaw) });
+    allBiz.forEach((biz) => {
+      const p = prev.rows.get(biz);
+      const c = curr.rows.get(biz);
+      const prevAmt = p ? p.amount : 0;
+      const currAmt = c ? c.amount : 0;
+      const name = (c || p).name;
+      currSum += currAmt; prevSum += prevAmt;
+      if (currAmt > 0) activeCount++;
+      let rate = null, isNew = false;
+      if (prevAmt > 0) {
+        rate = (currAmt - prevAmt) / prevAmt;
+        numericRates.push(rate);
+        if (rate > 0) growCount++;
+      } else if (currAmt > 0) {
+        isNew = true; newCount++;
+      }
+      parsed.push({ name, prev: prevAmt, curr: currAmt, rate: rate != null ? rate : (isNew ? '신규' : null) });
     });
 
-    const totalCustomers = dataRows.length;
-    const target = prevSum * 1.05;
-    const avgRate = numericRates.length ? (numericRates.reduce((a, b) => a + b, 0) / numericRates.length) * 100 : 0;
+    const totalCustomers = allBiz.size;
+    const target = hasPrevData ? prevSum * 1.05 : null;
+    const avgRate = hasPrevData && numericRates.length ? (numericRates.reduce((a, b) => a + b, 0) / numericRates.length) * 100 : null;
 
-    // funnel: 전체 → 매출발생 → 매출증가(신규 포함) → 우수(양호+증가)
+    // 3단계 퍼널: 전체 거래처 → 이번달 매출발생 → 전월대비 매출증가(신규 포함)
+    // 전달 데이터가 전혀 없는 첫 등록 달은 "매출증가"를 계산할 기준이 없어 0으로 둡니다.
     const funnel = [
       { stage: '전체 거래처', count: totalCustomers },
       { stage: '이번달 매출발생', count: activeCount },
-      { stage: '전월대비 매출증가', count: growCount + newCount },
-      { stage: '우수 거래처(양호+증가)', count: healthyGrowCount },
+      { stage: '전월대비 매출증가', count: hasPrevData ? growCount + newCount : 0 },
     ];
 
-    // top gainers: numeric rate, prev >= 500,000, desc by rate
-    const gainers = parsed
+    const gainers = hasPrevData ? parsed
       .filter(r => typeof r.rate === 'number' && r.prev >= 500000)
       .sort((a, b) => b.rate - a.rate)
       .slice(0, 5)
-      .map(r => ({ name: r.name, prev: r.prev, curr: r.curr, rate: r.rate * 100 }));
+      .map(r => ({ name: r.name, prev: r.prev, curr: r.curr, rate: r.rate * 100 })) : [];
 
-    // top sellers: desc by curr
     const sellers = [...parsed].sort((a, b) => b.curr - a.curr).slice(0, 5)
       .map(r => ({ name: r.name, amount: r.curr }));
 
     return {
-      fileName,
-      prevMonthLabel, currMonthLabel,
-      currSum, prevSum, target,
-      totalCustomers, avgRate,
-      funnel, gainers, sellers,
+      prevMonthLabel: prev.monthLabel, currMonthLabel: curr.monthLabel,
+      currSum, prevSum, target, totalCustomers, avgRate, funnel, gainers, sellers, hasPrevData,
       avgDeal: totalCustomers > 0 ? currSum / totalCustomers : 0,
+      currRows: curr.rows, prevRows: hasPrevData ? prev.rows : null,
+      currYear: curr.year, currMonthNum: curr.monthNum,
+      prevYear: prev.year, prevMonthNum: prev.monthNum,
     };
   }
 
   function renderPreview(r) {
-    const achievement = r.target > 0 ? (r.currSum / r.target) * 100 : 0;
+    const achievement = r.target > 0 ? (r.currSum / r.target) * 100 : null;
+    document.getElementById('previewMeta').textContent = r.hasPrevData
+      ? `${r.prevMonthLabel} → ${r.currMonthLabel} 대조 결과입니다 (전달 데이터: ${r.prevSource}). 저장 시 이번 달(${r.currMonthLabel}) 기준으로 반영됩니다.`
+      : `전달 데이터가 없어 ${r.currMonthLabel}을(를) 첫 등록 달로 저장합니다 — 목표/평균증감율/상위거래처는 다음 달부터 계산됩니다.`;
     document.getElementById('kpiPreview').innerHTML = `
-      <div class="kpi-box"><div class="l">① 이번 달 매출 (${r.currMonthLabel})</div><div class="v">${fmt(r.currSum/10000)}만원</div></div>
-      <div class="kpi-box"><div class="l">② 목표 (전달×105%)</div><div class="v">${fmt(r.target/10000)}만원</div></div>
+      <div class="kpi-box"><div class="l">① 이번 달 매출</div><div class="v">${fmt(r.currSum/10000)}만원</div></div>
+      <div class="kpi-box"><div class="l">② 목표 (전달×105%)</div><div class="v">${r.target != null ? fmt(r.target/10000)+'만원' : '-'}</div></div>
       <div class="kpi-box"><div class="l">③ 객단가</div><div class="v small">${fmt(r.avgDeal/10000)}만원</div></div>
-      <div class="kpi-box"><div class="l">④ 평균증감율</div><div class="v small" style="color:${r.avgRate>=0?'var(--good)':'var(--critical)'}">${r.avgRate>=0?'+':''}${r.avgRate.toFixed(1)}%</div></div>
+      <div class="kpi-box"><div class="l">④ 평균증감율</div><div class="v small" style="color:${r.avgRate==null?'inherit':(r.avgRate>=0?'var(--good)':'var(--critical)')}">${r.avgRate==null ? '-' : (r.avgRate>=0?'+':'')+r.avgRate.toFixed(1)+'%'}</div></div>
     `;
     document.getElementById('funnelPreview').innerHTML = r.funnel.map(f => `<span>${f.stage}: ${f.count.toLocaleString()}건</span>`).join('') +
-      `<span>목표 달성률: ${achievement.toFixed(1)}%</span>`;
+      (achievement != null ? `<span>목표 달성률: ${achievement.toFixed(1)}%</span>` : '');
     document.getElementById('gainerPreview').innerHTML = r.gainers.map(g => `
       <tr><td>${escapeHtml(g.name)}</td><td class="num">${fmt(g.prev)}원</td><td class="num">${fmt(g.curr)}원</td><td class="num" style="color:var(--good)">+${g.rate.toFixed(1)}%</td></tr>
     `).join('') || '<tr><td colspan="4">조건(전달 매출 50만원 이상)을 만족하는 거래처가 없습니다.</td></tr>';
@@ -272,7 +359,6 @@
   document.getElementById('cancelBtn').addEventListener('click', () => {
     computed = null;
     previewCard.style.display = 'none';
-    fileInput.value = '';
   });
 
   document.getElementById('saveBtn').addEventListener('click', async () => {
@@ -289,16 +375,34 @@
     }
   });
 
+  function mapToCustomerRows(map, year, monthNum) {
+    const out = [];
+    map.forEach((v, biz) => out.push({ biz, name: v.name, year: Number(year), month_num: monthNum, amount: v.amount }));
+    return out;
+  }
+
   async function saveToSupabase(r) {
-    // 1) sales_monthly: update this month's row if it exists, otherwise append a new one
+    // 0) 거래처×월 히스토리 저장 — 다음 달 업로드 때 "전달 파일 없이" 비교할 수 있게 함
+    const currCustomerRows = mapToCustomerRows(r.currRows, r.currYear, r.currMonthNum);
+    const { error: custCurrErr } = await db.from('sales_customer_monthly')
+      .upsert(currCustomerRows, { onConflict: 'biz,year,month_num' });
+    if (custCurrErr) throw custCurrErr;
+    if (r.hasPrevData && r.prevRows) {
+      const prevCustomerRows = mapToCustomerRows(r.prevRows, r.prevYear, r.prevMonthNum);
+      const { error: custPrevErr } = await db.from('sales_customer_monthly')
+        .upsert(prevCustomerRows, { onConflict: 'biz,year,month_num' });
+      if (custPrevErr) throw custPrevErr;
+    }
+
+    // 1) sales_monthly: 이번 달 행 갱신 또는 추가 (전체 누적 — 오래된 달을 지우지 않습니다)
     const { data: existingMonthly, error: monthlyReadErr } = await db.from('sales_monthly').select('*').order('sort_order', { ascending: true });
     if (monthlyReadErr) throw monthlyReadErr;
     const monthRow = {
       month: r.currMonthLabel,
       revenue: Math.round(r.currSum / 10000),
-      target: Math.round(r.target / 10000),
+      target: r.target != null ? Math.round(r.target / 10000) : null,
       total_customers: r.totalCustomers,
-      avg_growth_rate: Math.round(r.avgRate * 10) / 10,
+      avg_growth_rate: r.avgRate != null ? Math.round(r.avgRate * 10) / 10 : null,
     };
     const last = existingMonthly[existingMonthly.length - 1];
     if (last && last.month === r.currMonthLabel) {
@@ -308,28 +412,23 @@
       const nextSort = last ? last.sort_order + 1 : 1;
       const { error } = await db.from('sales_monthly').insert({ ...monthRow, sort_order: nextSort });
       if (error) throw error;
-      // keep only the most recent 7 months
-      const { data: all } = await db.from('sales_monthly').select('id,sort_order').order('sort_order', { ascending: true });
-      if (all && all.length > 7) {
-        const toDelete = all.slice(0, all.length - 7).map(x => x.id);
-        await db.from('sales_monthly').delete().in('id', toDelete);
-      }
     }
 
-    // 2) sales_pipeline: replace the 4 funnel rows
+    // 2) sales_pipeline / sales_rank: 이번 달 기준 스냅샷으로 교체
     const { error: delPipeErr } = await db.from('sales_pipeline').delete().gte('id', 0);
     if (delPipeErr) throw delPipeErr;
     const pipelineRows = r.funnel.map((f, i) => ({ sort_order: i + 1, stage: f.stage, count: f.count }));
     const { error: insPipeErr } = await db.from('sales_pipeline').insert(pipelineRows);
     if (insPipeErr) throw insPipeErr;
 
-    // 3) sales_rank: replace gainer + seller rows
     const { error: delRankErr } = await db.from('sales_rank').delete().gte('id', 0);
     if (delRankErr) throw delRankErr;
     const gainerRows = r.gainers.map(g => ({ kind: 'gainer', name: g.name, amount: Math.round(g.curr / 10000), rate: Math.round(g.rate * 10) / 10 }));
     const sellerRows = r.sellers.map(s => ({ kind: 'seller', name: s.name, amount: Math.round(s.amount / 10000), rate: null }));
-    const { error: insRankErr } = await db.from('sales_rank').insert([...gainerRows, ...sellerRows]);
-    if (insRankErr) throw insRankErr;
+    if (gainerRows.length || sellerRows.length) {
+      const { error: insRankErr } = await db.from('sales_rank').insert([...gainerRows, ...sellerRows]);
+      if (insRankErr) throw insRankErr;
+    }
   }
 </script>
 </body>

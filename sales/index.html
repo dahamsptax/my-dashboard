@@ -62,7 +62,10 @@
   .progress-track { margin-top: 12px; height: 8px; background: var(--color-primary-soft); border-radius: 999px; overflow: hidden; }
   .progress-fill { height: 100%; background: var(--color-primary); border-radius: 999px; transition: width .5s ease; }
   .charts-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 16px; align-items: stretch; }
-  .chart-card h2, .rank-grid h2 { font-size: 15px; font-weight: 700; margin: 0 0 16px; }
+  .chart-card h2, .rank-grid h2 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
+  .card-caption { font-size: 11.5px; color: var(--color-text-muted); margin: 0 0 14px; line-height: 1.5; }
+  .kpi-sub.up { color: #0ca30c; font-weight: 700; }
+  .kpi-sub.down { color: #d03b3b; font-weight: 700; }
   .chart-wrap svg { width: 100%; height: auto; display: block; overflow: visible; }
   .legend { display: flex; gap: 16px; margin-top: 12px; font-size: 12px; color: var(--color-text-muted); flex-wrap: wrap; }
   .legend-item { display: flex; align-items: center; gap: 6px; }
@@ -121,7 +124,10 @@
       <h1>영업 대시보드</h1>
       <p class="subtitle" id="subtitle">데이터를 불러오는 중...</p>
     </div>
-    <button id="refreshBtn" class="refresh-btn" type="button">새로고침</button>
+    <div style="display:flex;gap:8px;">
+      <a href="/sales/upload/" class="refresh-btn" style="text-decoration:none;display:inline-block;">엑셀 업로드</a>
+      <button id="refreshBtn" class="refresh-btn" type="button">새로고침</button>
+    </div>
   </header>
   <main>
     <section class="kpi-grid" id="kpiGrid"></section>
@@ -138,7 +144,8 @@
         </div>
       </div>
       <div class="card chart-card">
-        <h2>영업 단계 깔때기</h2>
+        <h2>거래처 활성화 퍼널</h2>
+        <p class="card-caption">영업단계(CRM) 데이터가 없어, 거래처 매출 활성도 흐름으로 구성했습니다.</p>
         <div class="chart-wrap">
           <svg id="funnelChart" viewBox="0 0 320 320" preserveAspectRatio="xMidYMid meet"></svg>
         </div>
@@ -146,11 +153,13 @@
     </section>
     <section class="rank-grid">
       <div class="card">
-        <h2>담당자별 순위</h2>
+        <h2>매출증감율 상위 거래처</h2>
+        <p class="card-caption">담당자 데이터가 없어, 전월대비 매출증감율 상위 거래처로 대체했습니다.</p>
         <div id="personRank" class="rank-list"></div>
       </div>
       <div class="card">
-        <h2>상품별 순위</h2>
+        <h2>매출액 상위 거래처</h2>
+        <p class="card-caption">상품 데이터가 없어, 이번 달 매출액 상위 거래처로 대체했습니다.</p>
         <div id="productRank" class="rank-list"></div>
       </div>
     </section>
@@ -194,8 +203,8 @@
       renderKPI(monthly, pipeline);
       renderMonthlyChart(monthly);
       renderFunnel(pipeline);
-      renderRank('personRank', rank.filter(r => r.kind === 'person'));
-      renderRank('productRank', rank.filter(r => r.kind === 'product'));
+      renderRank('personRank', rank.filter(r => r.kind === 'gainer'), 'gainer');
+      renderRank('productRank', rank.filter(r => r.kind === 'seller'), 'seller');
       const now = new Date();
       subtitle.textContent = '기준월: ' + monthly[monthly.length - 1].month + ' · 마지막 업데이트 ' +
         now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
@@ -206,33 +215,42 @@
   }
   function renderKPI(monthly, pipeline) {
     const cur = monthly[monthly.length - 1];
-    const contractStage = pipeline[pipeline.length - 1];
-    const contractCount = contractStage ? contractStage.count : 0;
     const achievement = cur.target > 0 ? (cur.revenue / cur.target) * 100 : 0;
     const remaining = cur.target - cur.revenue;
-    const avgDeal = contractCount > 0 ? Math.round(cur.revenue / contractCount) : 0;
     const barWidth = Math.min(Math.max(achievement, 0), 100);
+
+    // ③ 객단가: 매출 ÷ 전체 거래처수 (거래처 원장에 계약 건수 개념이 없어 이렇게 대체)
+    const hasCustomerCount = cur.total_customers != null && cur.total_customers > 0;
+    const totalCustomers = hasCustomerCount ? cur.total_customers : (pipeline[0] ? pipeline[0].count : 0);
+    const avgDeal = totalCustomers > 0 ? Math.round(cur.revenue / totalCustomers) : 0;
+
+    // ④ 매출 평균증감율: 계약 단계 데이터가 없어 거래처별 전월대비 증감율 평균으로 대체
+    const hasGrowthRate = cur.avg_growth_rate != null;
+    const growthRate = hasGrowthRate ? cur.avg_growth_rate : 0;
+    const growthDir = growthRate >= 0 ? 'up' : 'down';
+    const growthSign = growthRate >= 0 ? '+' : '';
+
     document.getElementById('kpiGrid').innerHTML = `
       <div class="card kpi kpi--main">
-        <p class="kpi-label">이번 달 매출 (${escapeHtml(cur.month)})</p>
+        <p class="kpi-label">① 이번 달 매출 (${escapeHtml(cur.month)})</p>
         <p class="kpi-value kpi-value--xl">${fmt(cur.revenue)}<span class="unit">만원</span></p>
         <div class="progress-track"><div class="progress-fill" style="width:${barWidth}%"></div></div>
         <p class="kpi-sub">목표 대비 <strong>${achievement.toFixed(1)}%</strong> 달성</p>
       </div>
       <div class="card kpi">
-        <p class="kpi-label">이번 달 목표</p>
+        <p class="kpi-label">② 이번 달 목표 (전달×105%)</p>
         <p class="kpi-value">${fmt(cur.target)}<span class="unit">만원</span></p>
-        <p class="kpi-sub">${remaining > 0 ? '남은 금액 ' + fmt(remaining) + '만원' : '목표 달성 완료'}</p>
+        <p class="kpi-sub">${remaining > 0 ? '남은 금액 ' + fmt(remaining) + '만원' : '목표 초과 +' + fmt(Math.abs(remaining)) + '만원'}</p>
       </div>
       <div class="card kpi">
-        <p class="kpi-label">객단가</p>
+        <p class="kpi-label">③ 객단가 (매출 ÷ 전체 거래처수)</p>
         <p class="kpi-value">${fmt(avgDeal)}<span class="unit">만원</span></p>
-        <p class="kpi-sub">매출 ÷ 계약 건수</p>
+        <p class="kpi-sub">전체 거래처 ${fmt(totalCustomers)}곳 기준</p>
       </div>
       <div class="card kpi">
-        <p class="kpi-label">계약 건수</p>
-        <p class="kpi-value">${fmt(contractCount)}<span class="unit">건</span></p>
-        <p class="kpi-sub">${contractStage ? escapeHtml(contractStage.stage) : ''} 단계 기준</p>
+        <p class="kpi-label">④ 매출 평균증감율</p>
+        <p class="kpi-value">${growthSign}${growthRate.toFixed(1)}<span class="unit">%</span></p>
+        <p class="kpi-sub ${growthDir}">거래처별 전월대비 증감율 평균</p>
       </div>
     `;
   }
@@ -319,10 +337,30 @@
     content += `<text x="${cx}" y="${lastY + 26}" text-anchor="middle" class="funnel-final">최종 전환율 ${finalRate.toFixed(1)}%</text>`;
     svg.innerHTML = content;
   }
-  function renderRank(containerId, items) {
+  function renderRank(containerId, items, mode) {
     const el = document.getElementById(containerId);
     if (!items.length) {
       el.innerHTML = '<p class="empty">데이터가 없습니다.</p>';
+      return;
+    }
+    if (mode === 'gainer') {
+      const maxRate = Math.max(...items.map(i => Math.abs(i.rate || 0))) || 1;
+      el.innerHTML = items.map((item, idx) => {
+        const width = (Math.abs(item.rate || 0) / maxRate) * 100;
+        const sign = (item.rate || 0) >= 0 ? '▲ +' : '▼ ';
+        return `
+          <div class="rank-row">
+            <span class="rank-no">${idx + 1}</span>
+            <div class="rank-body">
+              <div class="rank-top">
+                <span class="rank-name">${escapeHtml(item.name)}</span>
+                <span class="rank-amount" style="color:#0ca30c">${sign}${Math.abs(item.rate || 0).toFixed(1)}%</span>
+              </div>
+              <div class="rank-track"><div class="rank-fill" style="width:${width}%;background:#0ca30c"></div></div>
+            </div>
+          </div>
+        `;
+      }).join('');
       return;
     }
     const maxAmount = Math.max(...items.map(i => i.amount)) || 1;

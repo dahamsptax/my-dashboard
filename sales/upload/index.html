@@ -424,22 +424,24 @@
     }
 
     // 1) sales_monthly: 이번 달 행 갱신 또는 추가 (전체 누적 — 오래된 달을 지우지 않습니다)
+    // sort_order는 업로드한 "순서"가 아니라 실제 달 숫자(currMonthNum)로 고정합니다 —
+    // 1월~8월을 어떤 순서로 올리시든 그래프는 항상 달 순서(1,2,3...)대로 나오게 하기 위해서입니다.
     const { data: existingMonthly, error: monthlyReadErr } = await db.from('sales_monthly').select('*').order('sort_order', { ascending: true });
     if (monthlyReadErr) throw monthlyReadErr;
     const monthRow = {
       month: r.currMonthLabel,
+      sort_order: r.currMonthNum,
       revenue: Math.round(r.currSum / 10000),
       target: r.target != null ? Math.round(r.target / 10000) : null,
       total_customers: r.totalCustomers,
       avg_growth_rate: r.avgRate != null ? Math.round(r.avgRate * 10) / 10 : null,
     };
-    const last = existingMonthly[existingMonthly.length - 1];
-    if (last && last.month === r.currMonthLabel) {
-      const { error } = await db.from('sales_monthly').update(monthRow).eq('id', last.id);
+    const existing = existingMonthly.find(m => m.month === r.currMonthLabel);
+    if (existing) {
+      const { error } = await db.from('sales_monthly').update(monthRow).eq('id', existing.id);
       if (error) throw error;
     } else {
-      const nextSort = last ? last.sort_order + 1 : 1;
-      const { error } = await db.from('sales_monthly').insert({ ...monthRow, sort_order: nextSort });
+      const { error } = await db.from('sales_monthly').insert(monthRow);
       if (error) throw error;
     }
 

@@ -91,7 +91,7 @@
 
   <div class="card">
     <h2>1. 파일 선택</h2>
-    <p class="hint"><b>이번 달 파일은 필수</b>이고, 전달 파일은 <b>선택</b>입니다 — 전달 파일을 넣지 않으면 이전에 저장해둔 전달 거래처별 매출을 자동으로 불러와 비교합니다 (처음 몇 달은 넣어주시고, 이후부터는 이번 달 파일 1개만 올리시면 됩니다). "거래처, 사업자번호, 금액" 열이 있는 매출 부가세 집계표 형식이면 됩니다.</p>
+    <p class="hint"><b>이번 달 파일은 필수</b>이고, 전달 파일은 <b>선택</b>입니다 — 전달 파일을 넣지 않으면 이전에 저장해둔 전달 거래처별 매출을 자동으로 불러와 비교합니다 (처음 몇 달은 넣어주시고, 이후부터는 이번 달 파일 1개만 올리시면 됩니다). "매출 부가세 집계표"(L열 "금액(전)" 기준) 또는 "분기별 매출 집계표"(I열, "전표 입력분" 금액 기준) 형식을 자동으로 인식합니다 — 어느 쪽이든 거래처별 "전표 입력분" 매출액으로 집계됩니다.</p>
     <div class="drop-grid">
       <div class="dropzone" id="dropzoneA" data-slot="A">
         <div class="role">이번 달 파일 (필수)</div>
@@ -196,25 +196,54 @@
     const monthNum = parseInt(dateMatch[2], 10);
     const monthLabel = `${monthNum}월`;
 
-    // 헤더 행 찾기: 첫 칸이 "거래처"이고 "사업자번호"를 포함하는 행
+    // 이 회사에서 받는 매출 집계표는 두 가지 형식이 섞여 있어 둘 다 지원한다.
+    // 형식 A: "매출 부가세 집계표" — "거래처/사업자번호" 이름표가 붙은 헤더 행이 있고,
+    //         매출액은 "금액(전)" 열(전표 입력분, 보통 L열)에 있다.
+    // 형식 B: "분기별 매출 집계표" — 이름표 붙은 헤더 행이 따로 없고, 대신 "발행분 / 전표 입력분"
+    //         그룹 라벨 행만 있으며 거래처 데이터가 곧바로 시작한다. 매출액은 "전표 입력분" 그룹의
+    //         첫 열(금액, 보통 I열)에 있다.
+    const bizNoRe = /^\d{3}-\d{2}-\d{5}$/; // 사업자번호 형식 000-00-00000
+
     let headerIdx = -1, header = null;
     for (let i = 0; i < lines.length; i++) {
       const cells = lines[i].split(',').map(c => c.trim());
       if (cells[0] === '거래처' && cells.includes('사업자번호')) { headerIdx = i; header = cells; break; }
     }
-    if (headerIdx === -1) throw new Error('"거래처/사업자번호" 헤더 행을 찾지 못했습니다.');
-    const idxName = header.indexOf('거래처');
-    const idxBiz = header.indexOf('사업자번호');
-    const idxAmount = header.indexOf('금액');
-    if (idxAmount === -1) throw new Error('"금액" 열을 찾지 못했습니다.');
+
+    let idxName = 0, idxBiz = 1, idxAmount, dataStartIdx;
+
+    if (header) {
+      // 형식 A
+      idxName = header.indexOf('거래처');
+      idxBiz = header.indexOf('사업자번호');
+      idxAmount = header.indexOf('금액(전)');
+      if (idxAmount === -1) throw new Error('"금액(전)" 열(L열)을 찾지 못했습니다.');
+      dataStartIdx = headerIdx + 1;
+    } else {
+      // 형식 B: "전표 입력분" 그룹 라벨이 있는 열을 매출액 열로 사용 (보통 I열)
+      let groupIdx = -1;
+      for (let i = 0; i < Math.min(lines.length, 10); i++) {
+        const cells = lines[i].split(',').map(c => c.trim());
+        const idx = cells.indexOf('전표 입력분');
+        if (idx !== -1) { groupIdx = idx; break; }
+      }
+      idxAmount = groupIdx !== -1 ? groupIdx : 8; // 못 찾으면 I열(인덱스 8)로 기본 처리
+      // 데이터 시작 행: 두 번째 칸이 사업자번호 형식(000-00-00000)인 첫 줄
+      dataStartIdx = -1;
+      for (let i = 0; i < lines.length; i++) {
+        const cells = lines[i].split(',').map(c => c.trim());
+        if (bizNoRe.test(cells[1] || '')) { dataStartIdx = i; break; }
+      }
+      if (dataStartIdx === -1) throw new Error('데이터 시작 행(거래처/사업자번호)을 찾지 못했습니다.');
+    }
 
     const rows = new Map(); // biz -> { name, amount }
-    for (let i = headerIdx + 1; i < lines.length; i++) {
+    for (let i = dataStartIdx; i < lines.length; i++) {
       const cells = lines[i].split(',').map(c => c.trim());
       const name = cells[idxName];
       if (!name || name === '총계') continue;
       const biz = cells[idxBiz] || name; // 사업자번호가 없으면 이름으로 대체
-      const amount = Number(cells[idxAmount].replace(/[^\d-]/g, '')) || 0;
+      const amount = Number((cells[idxAmount] || '').replace(/[^\d-]/g, '')) || 0;
       if (rows.has(biz)) {
         rows.get(biz).amount += amount; // 같은 사업자번호가 여러 줄이면 합산
       } else {

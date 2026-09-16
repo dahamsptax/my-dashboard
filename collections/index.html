@@ -276,6 +276,18 @@
     });
   }
 
+  // 회사명 표기 차이(공백, 전각/반각 괄호 등)를 정리해서 같은 회사로 인식시킴
+  function normalizeCompanyName(raw) {
+    const cleaned = String(raw ?? '')
+      .replace(/[（]/g, '(')
+      .replace(/[）]/g, ')')
+      .trim()
+      .replace(/\s+/g, ' ');
+    const stripped = cleaned.replace(/\s+/g, '');
+    const known = COMPANY_ORDER.find(c => c.replace(/\s+/g, '') === stripped);
+    return known || cleaned;
+  }
+
   function excelDateToStr(v) {
     if (v === null || v === undefined || v === '') return '';
     if (v instanceof Date) return v.toISOString().slice(0, 10);
@@ -294,7 +306,7 @@
   /* ---------- 엑셀 → 데이터 변환 ---------- */
   function normalizeCase(row) {
     return {
-      creditor_company: String(row['채권자'] ?? '').trim(),
+      creditor_company: normalizeCompanyName(row['채권자']),
       case_no: String(row['사건번호'] ?? '').trim(),
       company_name: String(row['회사명'] ?? '').trim(),
       business_reg_no: String(row['사업자등록번호'] ?? '').trim(),
@@ -379,9 +391,11 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const payload = JSON.parse(raw);
-        allCases = payload.cases || [];
-        allProgress = payload.progress || [];
+        allCases = (payload.cases || []).map(c => ({ ...c, creditor_company: normalizeCompanyName(c.creditor_company) }));
+        allProgress = (payload.progress || []).map(p => ({ ...p, creditor_company: normalizeCompanyName(p.creditor_company) }));
         updateLastUpdatedLabel(payload.updatedAt);
+        // 정규화된 값으로 다시 저장 (다음부터는 항상 깨끗한 상태로 시작)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ cases: allCases, progress: allProgress, updatedAt: payload.updatedAt }));
       }
     } catch (e) { console.error(e); }
     renderCompanies();

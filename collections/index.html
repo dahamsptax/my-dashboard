@@ -276,16 +276,24 @@
     });
   }
 
-  // 회사명 표기 차이(공백, 전각/반각 괄호 등)를 정리해서 같은 회사로 인식시킴
+  // 회사명 표기 차이(공백, 괄호 모양, ㈜/㈱ 같은 특수기호 등)를 무시하고 같은 회사로 인식시킴
+  function companyMatchKey(s) {
+    return String(s ?? '')
+      .normalize('NFC')
+      .replace(/[（）()㈜㈱]/g, '')
+      .replace(/\s+/g, '')
+      .trim();
+  }
   function normalizeCompanyName(raw) {
-    const cleaned = String(raw ?? '')
+    const key = companyMatchKey(raw);
+    const known = COMPANY_ORDER.find(c => companyMatchKey(c) === key);
+    if (known) return known;
+    return String(raw ?? '')
+      .normalize('NFC')
       .replace(/[（]/g, '(')
       .replace(/[）]/g, ')')
       .trim()
       .replace(/\s+/g, ' ');
-    const stripped = cleaned.replace(/\s+/g, '');
-    const known = COMPANY_ORDER.find(c => c.replace(/\s+/g, '') === stripped);
-    return known || cleaned;
   }
 
   function excelDateToStr(v) {

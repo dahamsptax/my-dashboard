@@ -165,12 +165,12 @@
   <header>
     <a class="hub-link" href="/">← 허브로 돌아가기</a>
     <h1>고객 대시보드</h1>
-    <p class="header-sub">고객 수, 잔존율, 재구매 흐름을 한눈에 확인하세요.</p>
+    <p class="header-sub">거래처별 매출 원본 데이터를 기준으로 자동 계산돼요.</p>
   </header>
 
   <section class="cards">
     <div class="card total">
-      <div class="card-label">전체 고객 수</div>
+      <div class="card-label">활동 거래처 수</div>
       <div class="card-value" id="cardTotalValue">-</div>
     </div>
     <div class="card">
@@ -184,7 +184,7 @@
       <div class="spark-wrap" id="churnSpark"></div>
     </div>
     <div class="card">
-      <div class="card-label">LTV</div>
+      <div class="card-label">이번 달 총매출</div>
       <div class="card-value" id="cardLtvValue">-</div>
       <div class="card-delta" id="cardLtvDelta">불러오는 중...</div>
       <div class="spark-wrap" id="ltvSpark"></div>
@@ -194,7 +194,7 @@
   <section class="mid-grid">
     <div class="panel">
       <h2 class="section-title">코호트 잔존율</h2>
-      <p class="section-caption">유입 월 기준, N개월 뒤 남아있는 고객 비율</p>
+      <p class="section-caption">첫 거래월 기준, N개월 뒤 거래가 남아있는 거래처 비율</p>
       <div class="table-scroll">
         <table class="cohort-table" id="cohortTable">
           <thead></thead>
@@ -203,8 +203,8 @@
       </div>
     </div>
     <div class="panel">
-      <h2 class="section-title">고객 구성</h2>
-      <p class="section-caption">customer_summary 데이터를 기반으로 추정한 구성이에요</p>
+      <h2 class="section-title">거래처 구성</h2>
+      <p class="section-caption">실제 매출 데이터 기준으로 계산한 구성이에요</p>
       <div class="donut-block" id="donutBlock">
         <div class="empty-msg">불러오는 중...</div>
       </div>
@@ -276,11 +276,12 @@
   /*
     ▼▼▼ 아래 2줄만 본인 Supabase 정보로 바꿔주세요 ▼▼▼
     Supabase 대시보드 > Project Settings > API 에서 확인할 수 있어요.
-    1) SUPABASE_URL      → https://your-project.supabase.co
+    1) SUPABASE_URL      → Project URL
     2) SUPABASE_ANON_KEY → anon public key
   */
   const SUPABASE_URL = "https://mcypzsammvrthfqihkwy.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeXB6c2FtbXZydGhmcWloa3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzOTk1NzcsImV4cCI6MjEwMTk3NTU3N30.oUcfA-F0S9QHgpK56qvB0-aczx7AMPXDCtkVtNrJ3QM";
+
 
   // 이탈률 목표선(%) - 필요하면 이 숫자만 바꾸세요
   const CHURN_TARGET = 5.0;
@@ -344,104 +345,170 @@
       </svg>`;
   }
 
-  function renderCards(summaryRows, repeatRows) {
-    if (!summaryRows.length) return;
-    const latest = summaryRows[summaryRows.length - 1];
-    const prev = summaryRows.length > 1 ? summaryRows[summaryRows.length - 2] : null;
+  /* ---------- sales_customer_monthly 원본으로 월별 모델 구성 ---------- */
+  function buildModel(rows) {
+    if (!rows || !rows.length) return null;
 
-    document.getElementById('cardTotalValue').textContent = fmtNum(latest.total_customers);
+    const monthMap = new Map(); // key -> {year, month_num}
+    rows.forEach(r => {
+      const k = monthKey(r.year, r.month_num);
+      if (!monthMap.has(k)) monthMap.set(k, { year: r.year, month_num: r.month_num });
+    });
+    const monthKeys = [...monthMap.keys()].sort();
+    const months = monthKeys.map(k => {
+      const { year, month_num } = monthMap.get(k);
+      return { key: k, year, month_num, label: `${month_num}월`, activeSet: new Set(), revenue: 0 };
+    });
+    const monthIndex = new Map(months.map((m, i) => [m.key, i]));
 
-    const repeat6 = repeatRows.find(r => r.period === '6개월');
-    document.getElementById('cardRepeatValue').textContent = repeat6 ? fmtPct(repeat6.rate) : '-';
+    const bizName = new Map();
+    const bizFirstIndex = new Map();
 
-    document.getElementById('cardChurnValue').textContent = fmtPct(latest.churn_rate);
+    rows.forEach(r => {
+      const idx = monthIndex.get(monthKey(r.year, r.month_num));
+      const m = months[idx];
+      m.activeSet.add(r.biz);
+      m.revenue += Number(r.amount) || 0;
+      bizName.set(r.biz, r.name);
+      if (!bizFirstIndex.has(r.biz) || idx < bizFirstIndex.get(r.biz)) bizFirstIndex.set(r.biz, idx);
+    });
+
+    const K = months.length;
+
+    // 월별 요약: total, new, churn_rate
+    const summary = months.map((m, i) => {
+      const total = m.activeSet.size;
+      let newCount = 0;
+      bizFirstIndex.forEach((firstIdx) => { if (firstIdx === i) newCount++; });
+      let churnRate = null;
+      if (i > 0) {
+        const prevSet = months[i - 1].activeSet;
+        let lost = 0;
+        prevSet.forEach(b => { if (!m.activeSet.has(b)) lost++; });
+        churnRate = prevSet.size ? (lost / prevSet.size) * 100 : 0;
+      }
+      return { ...m, total, newCount, churnRate };
+    });
+
+    // 코호트: 첫 거래월(c) 기준, M+0~M+5 잔존율
+    const cohorts = [];
+    for (let c = 0; c < K; c++) {
+      const cohortSet = new Set();
+      bizFirstIndex.forEach((firstIdx, biz) => { if (firstIdx === c) cohortSet.add(biz); });
+      if (!cohortSet.size) continue;
+      const offsets = {};
+      for (let o = 0; o <= 5 && c + o < K; o++) {
+        let stillActive = 0;
+        cohortSet.forEach(b => { if (months[c + o].activeSet.has(b)) stillActive++; });
+        offsets[o] = (stillActive / cohortSet.size) * 100;
+      }
+      cohorts.push({ label: months[c].label, size: cohortSet.size, offsets });
+    }
+
+    // 기간별 재구매율 (1/3/6/12개월): 그만큼 경과된 코호트들을 모아 가중평균
+    const repeatTargets = [1, 3, 6, 12];
+    const repeat = repeatTargets.map(t => {
+      let num = 0, den = 0;
+      for (let c = 0; c + t < K; c++) {
+        const cohortSet = new Set();
+        bizFirstIndex.forEach((firstIdx, biz) => { if (firstIdx === c) cohortSet.add(biz); });
+        if (!cohortSet.size) continue;
+        den += cohortSet.size;
+        cohortSet.forEach(b => { if (months[c + t].activeSet.has(b)) num++; });
+      }
+      return { period: `${t}개월`, rate: den > 0 ? (num / den) * 100 : null };
+    });
+
+    return { months: summary, cohorts, repeat, bizFirstIndex, bizName, K };
+  }
+
+  function renderCards(model) {
+    if (!model) return;
+    const { months } = model;
+    const latest = months[months.length - 1];
+    const prev = months.length > 1 ? months[months.length - 2] : null;
+
+    document.getElementById('cardTotalValue').textContent = fmtNum(latest.total);
+
+    const repeat6 = model.repeat.find(r => r.period === '6개월');
+    document.getElementById('cardRepeatValue').textContent = (repeat6 && repeat6.rate != null) ? fmtPct(repeat6.rate) : '데이터 부족';
+
+    document.getElementById('cardChurnValue').textContent = latest.churnRate != null ? fmtPct(latest.churnRate) : '-';
     const churnDeltaEl = document.getElementById('cardChurnDelta');
-    if (prev) {
-      const d = latest.churn_rate - prev.churn_rate;
+    if (prev && latest.churnRate != null && prev.churnRate != null) {
+      const d = latest.churnRate - prev.churnRate;
       const arrow = d >= 0 ? '▲' : '▼';
       churnDeltaEl.innerHTML = `<span class="accent-text">${arrow} ${Math.abs(d).toFixed(1)}%p</span> 전월 대비`;
     } else {
       churnDeltaEl.textContent = '전월 데이터 없음';
     }
 
-    document.getElementById('cardLtvValue').textContent = fmtWon(latest.ltv);
-    const ltvDeltaEl = document.getElementById('cardLtvDelta');
+    document.getElementById('cardLtvValue').textContent = fmtWon(latest.revenue);
+    const revDeltaEl = document.getElementById('cardLtvDelta');
     if (prev) {
-      const d = latest.ltv - prev.ltv;
+      const d = latest.revenue - prev.revenue;
       const arrow = d >= 0 ? '▲' : '▼';
-      ltvDeltaEl.innerHTML = `<span class="accent-text">${arrow} ${fmtWon(Math.abs(d))}</span> 전월 대비`;
+      revDeltaEl.innerHTML = `<span class="accent-text">${arrow} ${fmtWon(Math.abs(d))}</span> 전월 대비`;
     } else {
-      ltvDeltaEl.textContent = '전월 데이터 없음';
+      revDeltaEl.textContent = '전월 데이터 없음';
     }
 
-    const last6 = summaryRows.slice(-6);
-    renderSparkline('churnSpark', last6.map(r => Number(r.churn_rate) || 0));
-    renderSparkline('ltvSpark', last6.map(r => Number(r.ltv) || 0));
+    const last6 = months.slice(-6);
+    renderSparkline('churnSpark', last6.map(r => Number(r.churnRate) || 0));
+    renderSparkline('ltvSpark', last6.map(r => Number(r.revenue) || 0));
   }
 
   /* ---------- 코호트 잔존율 표 ---------- */
-  function renderCohort(rows) {
+  function renderCohort(model) {
     const table = document.getElementById('cohortTable');
     const thead = table.querySelector('thead');
     const tbody = table.querySelector('tbody');
 
-    if (!rows || !rows.length) {
+    if (!model || !model.cohorts.length) {
       tbody.innerHTML = `<tr><td>${emptyMsg('코호트 데이터가 없어요')}</td></tr>`;
       return;
     }
 
     const COLS = [0, 1, 2, 3, 4, 5];
-    thead.innerHTML = `<tr><th>유입 월</th>${COLS.map(c => `<th>M+${c}</th>`).join('')}</tr>`;
+    thead.innerHTML = `<tr><th>첫 거래월</th>${COLS.map(c => `<th>M+${c}</th>`).join('')}</tr>`;
 
-    const cohortOrder = [];
-    const cohortMap = {};
-    rows.forEach(r => {
-      const key = r.cohort_month;
-      if (!cohortMap[key]) { cohortMap[key] = {}; cohortOrder.push(key); }
-      cohortMap[key][r.months_after] = Number(r.retention);
-    });
-
-    const bodyHtml = cohortOrder.map(month => {
+    const bodyHtml = model.cohorts.map(co => {
       const cells = COLS.map(c => {
-        const v = cohortMap[month][c];
+        const v = co.offsets[c];
         if (v === undefined) return `<td class="cell-empty">-</td>`;
         const alpha = Math.min(Math.max(0.15 + (v / 100) * 0.65, 0.15), 0.85);
         const color = alpha > 0.5 ? '#ffffff' : 'var(--text)';
         return `<td style="background:rgba(${ACCENT_RGB},${alpha.toFixed(2)});color:${color}">${v.toFixed(0)}%</td>`;
       }).join('');
-      return `<tr><td class="cohort-month">${escapeHtml(month)}</td>${cells}</tr>`;
+      return `<tr><td class="cohort-month">${escapeHtml(co.label)}</td>${cells}</tr>`;
     }).join('');
 
     tbody.innerHTML = bodyHtml;
   }
 
-  /* ---------- 고객 구성 도넛 ---------- */
-  function renderDonut(summaryRows) {
+  /* ---------- 거래처 구성 도넛 (실측치) ---------- */
+  function renderDonut(model) {
     const wrap = document.getElementById('donutBlock');
-    if (!summaryRows.length) { wrap.innerHTML = emptyMsg('데이터가 없어요'); return; }
+    if (!model || !model.months.length) { wrap.innerHTML = emptyMsg('데이터가 없어요'); return; }
 
-    const latest = summaryRows[summaryRows.length - 1];
-    const prev = summaryRows.length > 1 ? summaryRows[summaryRows.length - 2] : null;
+    const { months, bizFirstIndex, K } = model;
+    const latestIdx = K - 1;
+    const latestSet = months[latestIdx].activeSet;
+    const prevSet = K > 1 ? months[latestIdx - 1].activeSet : new Set();
 
-    const currTotal = Number(latest.total_customers) || 0;
-    const newC = Number(latest.new_customers) || 0;
-    let retained, reactivated;
+    const newSet = new Set();
+    bizFirstIndex.forEach((firstIdx, biz) => { if (firstIdx === latestIdx) newSet.add(biz); });
 
-    if (prev) {
-      const prevTotal = Number(prev.total_customers) || 0;
-      const churned = prevTotal * ((Number(latest.churn_rate) || 0) / 100);
-      retained = Math.max(prevTotal - churned, 0);
-      if (retained + newC > currTotal) retained = Math.max(currTotal - newC, 0);
-      reactivated = Math.max(currTotal - newC - retained, 0);
-    } else {
-      retained = Math.max(currTotal - newC, 0);
-      reactivated = 0;
-    }
+    const retainedSet = new Set();
+    latestSet.forEach(b => { if (prevSet.has(b) && !newSet.has(b)) retainedSet.add(b); });
+
+    const reactivatedSet = new Set();
+    latestSet.forEach(b => { if (!newSet.has(b) && !retainedSet.has(b)) reactivatedSet.add(b); });
 
     const segments = [
-      { label: '재구매 고객', value: retained, opacity: 1 },
-      { label: '신규', value: newC, opacity: 0.55 },
-      { label: '휴면 복귀', value: reactivated, opacity: 0.28 }
+      { label: '재거래', value: retainedSet.size, opacity: 1 },
+      { label: '신규', value: newSet.size, opacity: 0.55 },
+      { label: '휴면 복귀', value: reactivatedSet.size, opacity: 0.28 }
     ];
     const total = segments.reduce((a, s) => a + s.value, 0) || 1;
 
@@ -464,7 +531,7 @@
         <span class="legend-name">
           <span class="legend-dot" style="background:rgba(${ACCENT_RGB},${s.opacity})"></span>${s.label}
         </span>
-        <span class="legend-num">${fmtNum(s.value)}명 · ${fmtPct((s.value / total) * 100)}</span>
+        <span class="legend-num">${fmtNum(s.value)}곳 · ${fmtPct((s.value / total) * 100)}</span>
       </div>`).join('');
 
     wrap.innerHTML = `
@@ -474,35 +541,47 @@
           ${arcs}
         </svg>
         <div class="donut-center">
-          <div class="donut-total">${fmtNum(currTotal)}</div>
-          <div class="donut-total-label">전체 고객</div>
+          <div class="donut-total">${fmtNum(latestSet.size)}</div>
+          <div class="donut-total-label">활동 거래처</div>
         </div>
       </div>
       <div class="donut-legend">
         ${legendHtml}
         <div class="legend-divider"></div>
-        <div class="legend-ltv"><span>평균 LTV</span><b>${fmtWon(latest.ltv)}</b></div>
+        <div class="legend-ltv"><span>이번 달 매출</span><b>${fmtWon(months[latestIdx].revenue)}</b></div>
       </div>`;
   }
 
   /* ---------- 기간별 재구매율 가로 막대 ---------- */
-  function renderRepeatBars(rows) {
+  function renderRepeatBars(model) {
     const el = document.getElementById('repeatBars');
-    if (!rows || !rows.length) { el.innerHTML = emptyMsg('데이터가 없어요'); return; }
+    if (!model || !model.repeat.length) { el.innerHTML = emptyMsg('데이터가 없어요'); return; }
 
-    const max = Math.max(...rows.map(r => Number(r.rate) || 0), 1);
-    el.innerHTML = rows.map(r => `
-      <div class="hbar-row">
+    const valid = model.repeat.filter(r => r.rate != null);
+    const max = Math.max(...valid.map(r => r.rate), 1);
+    el.innerHTML = model.repeat.map(r => {
+      if (r.rate == null) {
+        return `<div class="hbar-row">
+          <div class="hbar-label">${escapeHtml(r.period)}</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:0%"></div></div>
+          <div class="hbar-value" style="color:var(--text-muted);font-size:11px;">데이터 부족</div>
+        </div>`;
+      }
+      return `<div class="hbar-row">
         <div class="hbar-label">${escapeHtml(r.period)}</div>
-        <div class="hbar-track"><div class="hbar-fill" style="width:${((Number(r.rate) || 0) / max * 100).toFixed(1)}%"></div></div>
+        <div class="hbar-track"><div class="hbar-fill" style="width:${(r.rate / max * 100).toFixed(1)}%"></div></div>
         <div class="hbar-value">${fmtPct(r.rate)}</div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 
   /* ---------- 월별 이탈률 추이 (목표선 포함) ---------- */
-  function renderChurnTrend(rows) {
+  function renderChurnTrend(model) {
     const wrap = document.getElementById('churnTrend');
-    if (!rows || !rows.length) { wrap.innerHTML = emptyMsg('데이터가 없어요'); return; }
+    if (!model || !model.months.length) { wrap.innerHTML = emptyMsg('데이터가 없어요'); return; }
+
+    const rows = model.months.filter(m => m.churnRate != null);
+    if (!rows.length) { wrap.innerHTML = emptyMsg('이탈률을 계산하려면 2개월 이상의 데이터가 필요해요'); return; }
 
     const W = 560, H = 220, padL = 34, padR = 14, padT = 16, padB = 30;
     const chartW = W - padL - padR;
@@ -510,7 +589,7 @@
     const n = rows.length;
     const stepX = n > 1 ? chartW / (n - 1) : 0;
 
-    const values = rows.map(r => Number(r.churn_rate) || 0);
+    const values = rows.map(r => Number(r.churnRate) || 0);
     const maxY = Math.max(...values, CHURN_TARGET) * 1.2 || 1;
 
     const yOf = (v) => padT + chartH - (v / maxY) * chartH;
@@ -518,7 +597,7 @@
 
     const linePath = 'M ' + pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L ');
     const dots = pts.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="4" class="trend-dot"></circle>`).join('');
-    const labels = rows.map((r, i) => `<text x="${(padL + stepX * i).toFixed(1)}" y="${H - 8}" text-anchor="middle" class="trend-axis-label">${escapeHtml(r.month)}</text>`).join('');
+    const labels = rows.map((r, i) => `<text x="${(padL + stepX * i).toFixed(1)}" y="${H - 8}" text-anchor="middle" class="trend-axis-label">${escapeHtml(r.label)}</text>`).join('');
 
     const targetY = yOf(CHURN_TARGET);
 
@@ -645,28 +724,18 @@
       return;
     }
     try {
-      const [suRes, coRes, reRes, scRes] = await Promise.all([
-        db.from('customer_summary').select('*').order('sort_order', { ascending: true }),
-        db.from('customer_cohort').select('*').order('sort_order', { ascending: true }),
-        db.from('customer_repeat').select('*').order('sort_order', { ascending: true }),
-        db.from('sales_customer_monthly').select('*')
-      ]);
-      if (suRes.error) throw suRes.error;
-      if (coRes.error) throw coRes.error;
-      if (reRes.error) throw reRes.error;
+      const scRes = await db.from('sales_customer_monthly').select('*');
       if (scRes.error) throw scRes.error;
 
-      const summaryRows = suRes.data || [];
-      const cohortRows = coRes.data || [];
-      const repeatRows = reRes.data || [];
       const salesCustomerRows = scRes.data || [];
 
       hideStatus();
-      renderCards(summaryRows, repeatRows);
-      renderCohort(cohortRows);
-      renderDonut(summaryRows);
-      renderRepeatBars(repeatRows);
-      renderChurnTrend(summaryRows);
+      const model = buildModel(salesCustomerRows);
+      renderCards(model);
+      renderCohort(model);
+      renderDonut(model);
+      renderRepeatBars(model);
+      renderChurnTrend(model);
 
       const bizStatus = computeBizStatus(salesCustomerRows);
       renderChurnCards(bizStatus);

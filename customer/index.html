@@ -120,6 +120,21 @@
   .trend-target{stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 5;opacity:.6;fill:none;}
   .trend-dot{fill:#fff;stroke:var(--accent);stroke-width:2;}
 
+  /* ---------- 이탈/신규 거래처 섹션 ---------- */
+  .cards-3{grid-template-columns:repeat(3,1fr);}
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;}
+  .badge.churn{background:rgba(220,38,38,0.10);color:#b91c1c;}
+  .badge.risk{background:rgba(217,119,6,0.12);color:#b45309;}
+  .badge.new{background:var(--accent-soft);color:var(--accent);}
+  .list-table{width:100%;border-collapse:collapse;}
+  .list-table th{font-size:11.5px;color:var(--text-muted);font-weight:700;text-align:left;
+    padding:0 8px 10px 0;white-space:nowrap;border-bottom:1px solid var(--border-soft);padding-bottom:8px;}
+  .list-table td{font-size:12.5px;padding:9px 8px 9px 0;border-bottom:1px solid var(--border-soft);}
+  .list-table tr:last-child td{border-bottom:none;}
+  .list-table td.num{text-align:right;font-weight:700;white-space:nowrap;}
+  .list-table td.name{font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .table-scroll-y{max-height:280px;overflow-y:auto;}
+
   .empty-msg{font-size:13px;color:var(--text-muted);padding:20px 0;text-align:center;}
 
   .status-msg{display:none;margin-top:20px;padding:14px 16px;border:1px solid var(--accent);
@@ -128,11 +143,13 @@
 
   @media (max-width:960px){
     .cards{grid-template-columns:repeat(2,1fr);}
+    .cards-3{grid-template-columns:repeat(2,1fr);}
     .mid-grid{grid-template-columns:1fr;}
     .bottom-grid{grid-template-columns:1fr;}
   }
   @media (max-width:520px){
     .cards{grid-template-columns:1fr;}
+    .cards-3{grid-template-columns:1fr;}
     .wrap{padding:24px 14px 48px;}
     .card.total .card-value{font-size:26px;}
     .donut-block{flex-direction:column;}
@@ -210,6 +227,47 @@
     </div>
   </section>
 
+  <section class="cards cards-3" style="margin-top:20px;">
+    <div class="card">
+      <div class="card-label">이탈 거래처</div>
+      <div class="card-value" id="cardChurnedCount">-</div>
+      <div class="card-delta">최근 2개월 연속 거래 없음</div>
+    </div>
+    <div class="card">
+      <div class="card-label">위험군 거래처</div>
+      <div class="card-value" id="cardAtRiskCount">-</div>
+      <div class="card-delta">직전 달만 거래 없음</div>
+    </div>
+    <div class="card">
+      <div class="card-label">신규 거래처</div>
+      <div class="card-value" id="cardNewBizCount">-</div>
+      <div class="card-delta" id="cardNewBizMonthLabel">이번 달 첫 거래</div>
+    </div>
+  </section>
+
+  <section class="bottom-grid">
+    <div class="panel">
+      <h2 class="section-title">이탈 거래처</h2>
+      <p class="section-caption" id="churnedCaption">최근 2개월 연속 거래 없는 거래처 (마지막 거래 금액 기준 정렬)</p>
+      <div class="table-scroll table-scroll-y">
+        <table class="list-table" id="churnedTable">
+          <thead><tr><th>거래처</th><th>마지막 거래월</th><th style="text-align:right">마지막 금액</th></tr></thead>
+          <tbody><tr><td colspan="3">불러오는 중...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <h2 class="section-title">신규 거래처</h2>
+      <p class="section-caption" id="newBizCaption">이번 달 처음 거래한 거래처 (금액 기준 정렬)</p>
+      <div class="table-scroll table-scroll-y">
+        <table class="list-table" id="newBizTable">
+          <thead><tr><th>거래처</th><th style="text-align:right">이번 달 매출</th></tr></thead>
+          <tbody><tr><td colspan="2">불러오는 중...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
   <div id="statusMsg" class="status-msg"></div>
 </div>
 
@@ -218,11 +276,11 @@
   /*
     ▼▼▼ 아래 2줄만 본인 Supabase 정보로 바꿔주세요 ▼▼▼
     Supabase 대시보드 > Project Settings > API 에서 확인할 수 있어요.
-    1) SUPABASE_URL      → https://mcypzsammvrthfqihkwy.supabase.co/rest/v1/
+    1) SUPABASE_URL      → Project URL
     2) SUPABASE_ANON_KEY → anon public key
   */
-  const SUPABASE_URL = "https://mcypzsammvrthfqihkwy.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeXB6c2FtbXZydGhmcWloa3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzOTk1NzcsImV4cCI6MjEwMTk3NTU3N30.oUcfA-F0S9QHgpK56qvB0-aczx7AMPXDCtkVtNrJ3QM";
+  const SUPABASE_URL = "https://your-project.supabase.co";
+  const SUPABASE_ANON_KEY = "your-anon-key";
 
   // 이탈률 목표선(%) - 필요하면 이 숫자만 바꾸세요
   const CHURN_TARGET = 5.0;
@@ -474,6 +532,112 @@
       </svg>`;
   }
 
+  /* ---------- 이탈/위험군/신규 거래처 계산 ---------- */
+  function monthKey(y, m) { return `${y}-${String(m).padStart(2, '0')}`;}
+  function monthLabel(y, m) { return `${y}.${m}월`; }
+
+  function computeBizStatus(rows) {
+    // rows: [{biz, name, year, month_num, amount}]
+    if (!rows || !rows.length) return null;
+
+    const monthSet = new Map(); // key -> {year, month_num}
+    rows.forEach(r => {
+      const k = monthKey(r.year, r.month_num);
+      if (!monthSet.has(k)) monthSet.set(k, { year: r.year, month_num: r.month_num });
+    });
+    const months = [...monthSet.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    if (!months.length) return null;
+
+    const latest = months[months.length - 1];
+    const prev1 = months.length > 1 ? months[months.length - 2] : null; // 직전 달
+    const prev2 = months.length > 2 ? months[months.length - 3] : null; // 그 전 달
+
+    const byBiz = new Map(); // biz -> { name, byMonth: Map(key->amount) }
+    rows.forEach(r => {
+      if (!byBiz.has(r.biz)) byBiz.set(r.biz, { name: r.name, byMonth: new Map() });
+      const entry = byBiz.get(r.biz);
+      entry.byMonth.set(monthKey(r.year, r.month_num), Number(r.amount) || 0);
+      entry.name = r.name; // 최신 이름으로 갱신
+    });
+
+    const latestKey = latest[0];
+    const prev1Key = prev1 ? prev1[0] : null;
+    const prev2Key = prev2 ? prev2[0] : null;
+
+    const churned = [];   // 2개월 연속(직전+이번) 거래 없음, 그 전 달엔 있었음
+    const atRisk = [];    // 직전 달만 거래 없음 (이번 달 기준으로 최근 달에 없음)
+    const newBiz = [];    // 최신 달에 처음 등장
+
+    byBiz.forEach((info, biz) => {
+      const hasLatest = info.byMonth.has(latestKey);
+      const hasPrev1 = prev1Key ? info.byMonth.has(prev1Key) : false;
+      const hasPrev2 = prev2Key ? info.byMonth.has(prev2Key) : false;
+
+      if (!hasLatest) {
+        if (prev2Key && hasPrev2 && !hasPrev1) {
+          // 그 전 달엔 있었는데 직전+이번 2개월 연속 없음
+          const lastKey = [...info.byMonth.keys()].sort().pop();
+          const lastM = monthSet.get(lastKey);
+          churned.push({ biz, name: info.name, lastKey, lastMonth: lastM, lastAmount: info.byMonth.get(lastKey) });
+        } else if (prev1Key && hasPrev1) {
+          // 직전 달엔 있었는데 이번 달만 없음 (아직 이탈 확정 아님)
+          atRisk.push({ biz, name: info.name });
+        }
+      } else {
+        // 이번 달엔 있음 → 이전 달들에 전혀 없었으면 신규
+        const hadAnyBefore = [...info.byMonth.keys()].some(k => k !== latestKey);
+        if (!hadAnyBefore) {
+          newBiz.push({ biz, name: info.name, amount: info.byMonth.get(latestKey) });
+        }
+      }
+    });
+
+    churned.sort((a, b) => b.lastAmount - a.lastAmount);
+    newBiz.sort((a, b) => b.amount - a.amount);
+
+    return { latest, prev1, prev2, churned, atRisk, newBiz };
+  }
+
+  function renderChurnedTable(status) {
+    const tbody = document.querySelector('#churnedTable tbody');
+    const caption = document.getElementById('churnedCaption');
+    if (!status || !status.churned.length) {
+      tbody.innerHTML = `<tr><td colspan="3">${emptyMsg('이탈 거래처가 없어요')}</td></tr>`;
+      return;
+    }
+    caption.textContent = `최근 2개월 연속 거래 없는 거래처 ${status.churned.length}곳 (마지막 거래 금액순)`;
+    tbody.innerHTML = status.churned.map(c => `
+      <tr>
+        <td class="name" title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</td>
+        <td>${monthLabel(c.lastMonth.year, c.lastMonth.month_num)}</td>
+        <td class="num">${fmtWon(c.lastAmount)}</td>
+      </tr>`).join('');
+  }
+
+  function renderNewBizTable(status) {
+    const tbody = document.querySelector('#newBizTable tbody');
+    const caption = document.getElementById('newBizCaption');
+    if (!status || !status.newBiz.length) {
+      tbody.innerHTML = `<tr><td colspan="2">${emptyMsg('신규 거래처가 없어요')}</td></tr>`;
+      return;
+    }
+    caption.textContent = `이번 달 처음 거래한 거래처 ${status.newBiz.length}곳 (금액순)`;
+    tbody.innerHTML = status.newBiz.map(c => `
+      <tr>
+        <td class="name" title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</td>
+        <td class="num">${fmtWon(c.amount)}</td>
+      </tr>`).join('');
+  }
+
+  function renderChurnCards(status) {
+    if (!status) return;
+    document.getElementById('cardChurnedCount').textContent = fmtNum(status.churned.length);
+    document.getElementById('cardAtRiskCount').textContent = fmtNum(status.atRisk.length);
+    document.getElementById('cardNewBizCount').textContent = fmtNum(status.newBiz.length);
+    document.getElementById('cardNewBizMonthLabel').textContent =
+      `${monthLabel(status.latest[1].year, status.latest[1].month_num)} 기준`;
+  }
+
   /* ---------- 데이터 로드 ---------- */
   async function loadDashboard() {
     if (!isConfigured()) {
@@ -481,18 +645,21 @@
       return;
     }
     try {
-      const [suRes, coRes, reRes] = await Promise.all([
+      const [suRes, coRes, reRes, scRes] = await Promise.all([
         db.from('customer_summary').select('*').order('sort_order', { ascending: true }),
         db.from('customer_cohort').select('*').order('sort_order', { ascending: true }),
-        db.from('customer_repeat').select('*').order('sort_order', { ascending: true })
+        db.from('customer_repeat').select('*').order('sort_order', { ascending: true }),
+        db.from('sales_customer_monthly').select('*')
       ]);
       if (suRes.error) throw suRes.error;
       if (coRes.error) throw coRes.error;
       if (reRes.error) throw reRes.error;
+      if (scRes.error) throw scRes.error;
 
       const summaryRows = suRes.data || [];
       const cohortRows = coRes.data || [];
       const repeatRows = reRes.data || [];
+      const salesCustomerRows = scRes.data || [];
 
       hideStatus();
       renderCards(summaryRows, repeatRows);
@@ -500,6 +667,11 @@
       renderDonut(summaryRows);
       renderRepeatBars(repeatRows);
       renderChurnTrend(summaryRows);
+
+      const bizStatus = computeBizStatus(salesCustomerRows);
+      renderChurnCards(bizStatus);
+      renderChurnedTable(bizStatus);
+      renderNewBizTable(bizStatus);
     } catch (e) {
       showError(e);
     }

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>영업 대시보드 · 거래처등록</title>
+<link rel="stylesheet" as="style" crossorigin
+  href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<style>
+  :root {
+    --color-bg: #ffffff;
+    --color-surface: #ffffff;
+    --color-border: #E7EAF0;
+    --color-text: #10151F;
+    --color-text-muted: #6B7280;
+    --color-primary: #2454E0;
+    --color-primary-dark: #16308C;
+    --color-primary-soft: #EAF0FE;
+    --good: #0ca30c;
+    --critical: #d03b3b;
+    --radius: 14px;
+    --shadow-card: 0 1px 2px rgba(16,21,31,.04), 0 8px 24px -12px rgba(16,21,31,.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--color-bg); color: var(--color-text);
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 880px; margin: 0 auto; padding: 32px 24px 60px; }
+  .topnav { margin-bottom: 16px; display: flex; gap: 14px; }
+  .topnav a { color: var(--color-text-muted); text-decoration: none; font-size: 13px; font-weight: 600; }
+  .topnav a:hover { color: var(--color-text); }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .tabs a { font-size: 13px; font-weight: 700; text-decoration: none; padding: 8px 16px; border-radius: 999px; color: var(--color-text-muted); background: #f2f3f5; }
+  .tabs a.active { color: #fff; background: var(--color-primary); }
+  h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 4px; }
+  .subtitle { font-size: 13px; color: var(--color-text-muted); margin: 0 0 24px; line-height: 1.6; }
+  .card {
+    background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: var(--radius); box-shadow: var(--shadow-card); padding: 22px 24px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
+  .card p.hint { font-size: 12.5px; color: var(--color-text-muted); margin: 0 0 16px; line-height: 1.6; }
+  .dropzone {
+    border: 2px dashed var(--color-border); border-radius: 12px; padding: 30px 16px;
+    text-align: center; cursor: pointer; transition: border-color .15s, background .15s; position: relative;
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--color-primary); background: var(--color-primary-soft); }
+  .dropzone.filled { border-style: solid; border-color: var(--good); background: #e4f4e1; }
+  .dropzone .role { font-size: 11.5px; font-weight: 700; color: var(--color-primary); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+  .dropzone .big { font-size: 13.5px; font-weight: 700; margin-bottom: 4px; }
+  .dropzone .small { font-size: 11.5px; color: var(--color-text-muted); }
+  input[type=file] { display: none; }
+  .status { font-size: 13px; margin-top: 14px; padding: 10px 14px; border-radius: 8px; display: none; line-height: 1.6; }
+  .status.show { display: block; }
+  .status.info { background: var(--color-primary-soft); color: var(--color-primary-dark); }
+  .status.error { background: #fbe9e7; color: var(--critical); }
+  .status.ok { background: #e4f4e1; color: var(--good); }
+  table.preview { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.preview th, table.preview td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--color-border); }
+  table.preview th { color: var(--color-text-muted); font-weight: 600; font-size: 12px; }
+  .btn {
+    border: none; background: var(--color-primary); color: #fff; font-weight: 700; font-size: 13.5px;
+    padding: 11px 22px; border-radius: 999px; cursor: pointer; font-family: inherit;
+  }
+  .btn:hover { background: var(--color-primary-dark); }
+  .btn:disabled { background: var(--color-border); color: var(--color-text-muted); cursor: not-allowed; }
+  .btn.secondary { background: #fff; color: var(--color-primary); border: 1px solid var(--color-border); }
+  .section-title { font-size: 13px; font-weight: 700; margin: 18px 0 8px; }
+  .actions { display: flex; gap: 10px; margin-top: 18px; }
+  .stat-row { display: flex; gap: 10px; margin-bottom: 4px; }
+  .stat-box { border: 1px solid var(--color-border); border-radius: 10px; padding: 12px 14px; flex: 1; }
+  .stat-box .l { font-size: 11.5px; color: var(--color-text-muted); margin-bottom: 6px; }
+  .stat-box .v { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topnav"><a href="/">← 대시보드 허브</a><a href="/sales/">← 영업 대시보드</a></div>
+  <div class="tabs">
+    <a href="/sales/upload/">1. 매출자료 업로드</a>
+    <a class="active" href="/sales/upload/customers/">2. 거래처등록</a>
+  </div>
+  <h1>거래처등록</h1>
+  <p class="subtitle">
+    전체 거래처 목록(마스터)을 등록해두면, 영업 대시보드의 "①전체 거래처"와 "③객단가"가 최근 업로드한
+    매출 파일 기준 근사치 대신 실제 등록 거래처 수를 기준으로 계산됩니다. 여기서 올리는 데이터는
+    매출액과 무관하게 "거래처명 + 사업자번호"만 저장하며, 기존에 등록된 거래처는 지우지 않고
+    새 거래처만 추가/갱신합니다 — 몇 번을 나눠 올리셔도 안전합니다.
+  </p>
+
+  <div class="card">
+    <h2>현재 등록된 거래처</h2>
+    <div class="stat-row">
+      <div class="stat-box"><div class="l">등록된 거래처 수</div><div class="v" id="currentCount">불러오는 중...</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>1. 파일 선택</h2>
+    <p class="hint">경영박사 등 ERP에서 뽑은 "거래처등록" 파일(xls/xlsx) 또는 CSV를 올려주세요. "상호명"(또는
+      거래처명, 상호, 업체명)과 "사업등록번호"(또는 사업자번호, 사업자등록번호) 열이 있으면 자동으로
+      인식합니다. 헤더 이름이 없는 파일이면 첫 번째 열을 거래처명, 두 번째 열을 사업자번호로 간주합니다.
+      형식이 달라 인식이 안 되면 파일을 채팅으로 보내주세요, 맞춰서 고쳐드릴게요.</p>
+    <div class="dropzone" id="dropzone">
+      <div class="role">거래처 목록 파일 (필수)</div>
+      <div class="big" id="dzLabel">클릭하거나 파일을 끌어다 놓으세요</div>
+      <div class="small">xls / xlsx / csv 지원</div>
+      <input type="file" id="fileInput" accept=".xls,.xlsx,.csv" />
+    </div>
+    <div class="status" id="statusEl"></div>
+  </div>
+
+  <div class="card" id="previewCard" style="display:none;">
+    <h2>2. 확인</h2>
+    <p class="hint" id="previewMeta"></p>
+    <div class="stat-row">
+      <div class="stat-box"><div class="l">파일에서 읽은 거래처 수</div><div class="v" id="parsedCount">-</div></div>
+      <div class="stat-box"><div class="l">이 중 신규 거래처</div><div class="v" id="newCount">-</div></div>
+    </div>
+    <div class="section-title">미리보기 (상위 10개)</div>
+    <table class="preview">
+      <thead><tr><th>거래처명</th><th>사업자번호</th></tr></thead>
+      <tbody id="rowPreview"></tbody>
+    </table>
+    <div class="actions">
+      <button class="btn" id="saveBtn">거래처 마스터에 저장</button>
+      <button class="btn secondary" id="cancelBtn">취소</button>
+    </div>
+    <div class="status" id="saveStatus"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+  const { createClient } = supabase;
+  const db = createClient(
+    "https://mcypzsammvrthfqihkwy.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeXB6c2FtbXZydGhmcWloa3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzOTk1NzcsImV4cCI6MjEwMTk3NTU3N30.oUcfA-F0S9QHgpK56qvB0-aczx7AMPXDCtkVtNrJ3QM"
+  );
+
+  const statusEl = document.getElementById('statusEl');
+  const previewCard = document.getElementById('previewCard');
+  function showStatus(el, msg, kind) {
+    el.textContent = msg;
+    el.className = 'status show ' + kind;
+  }
+
+  async function refreshCurrentCount() {
+    const { count, error } = await db.from('sales_customers').select('id', { count: 'exact', head: true });
+    document.getElementById('currentCount').textContent = error ? '조회 실패' : (count || 0).toLocaleString() + '개';
+  }
+  refreshCurrentCount();
+
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  let parsedRows = null; // Map(biz -> name)
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault(); dropzone.classList.remove('drag');
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+  function handleFile(file) {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        let aoa; // array-of-arrays: 시트/CSV를 행×열 배열로 통일해서 다룬다
+        if (ext === 'xls' || ext === 'xlsx') {
+          const wb = XLSX.read(e.target.result, { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+        } else {
+          const text = new TextDecoder('euc-kr').decode(new Uint8Array(e.target.result));
+          aoa = text.split(/\r?\n/).map(l => l.split(',').map(c => c.trim()));
+        }
+        const rows = parseCustomerRows(aoa);
+        parsedRows = rows;
+        dropzone.classList.add('filled');
+        document.getElementById('dzLabel').textContent = file.name + ` (거래처 ${rows.size.toLocaleString()}개 인식)`;
+        showStatus(statusEl, '파싱 완료 — 아래에서 확인 후 저장해주세요.', 'ok');
+        showPreview(rows);
+      } catch (err) {
+        console.error(err);
+        showStatus(statusEl, '파일을 읽는 중 오류: ' + (err.message || String(err)), 'error');
+        previewCard.style.display = 'none';
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // 거래처 목록 파싱(xls/xlsx/csv 공통): 헤더에서 "거래처명/상호명/상호/업체명" +
+  // "사업등록번호/사업자번호/사업자등록번호" 열을 찾고, 헤더가 없으면 1열=거래처명, 2열=사업자번호로 간주한다.
+  function parseCustomerRows(aoa) {
+    const lines = aoa.map(row => (row || []).map(c => String(c == null ? '' : c).trim()))
+      .filter(row => row.some(c => c.length));
+    if (!lines.length) throw new Error('빈 파일입니다.');
+
+    const nameKeys = ['거래처명', '거래처', '상호', '업체명', '상호명'];
+    const bizKeys = ['사업자번호', '사업자등록번호', '사업등록번호', '사업자 번호', '사업 등록번호'];
+
+    let headerIdx = -1, idxName = -1, idxBiz = -1;
+    for (let i = 0; i < Math.min(lines.length, 20); i++) {
+      const cells = lines[i];
+      const nMatch = cells.findIndex(c => nameKeys.includes(c));
+      const bMatch = cells.findIndex(c => bizKeys.includes(c));
+      if (nMatch !== -1 && bMatch !== -1) { headerIdx = i; idxName = nMatch; idxBiz = bMatch; break; }
+    }
+
+    let dataStart;
+    if (headerIdx !== -1) {
+      dataStart = headerIdx + 1;
+    } else {
+      // 헤더가 없는 경우: 1열 거래처명, 2열 사업자번호로 간주
+      idxName = 0; idxBiz = 1;
+      dataStart = 0;
+    }
+
+    const rows = new Map(); // biz -> name
+    for (let i = dataStart; i < lines.length; i++) {
+      const cells = lines[i];
+      const name = cells[idxName];
+      if (!name || name === '총계' || name === '합계') continue;
+      const biz = (cells[idxBiz] || '').trim() || name; // 사업자번호 없으면 이름으로 대체
+      rows.set(biz, name);
+    }
+    if (!rows.size) throw new Error('거래처 데이터를 찾지 못했습니다. 헤더 이름이나 열 순서를 확인해주세요.');
+    return rows;
+  }
+
+  async function showPreview(rows) {
+    document.getElementById('parsedCount').textContent = rows.size.toLocaleString() + '개';
+    document.getElementById('previewMeta').textContent =
+      '저장을 누르면 기존에 등록된 거래처는 그대로 두고, 새 사업자번호만 추가하거나 이름이 바뀐 거래처만 갱신합니다.';
+
+    // 신규 거래처 수 계산 (기존 마스터와 대조)
+    try {
+      const bizList = [...rows.keys()];
+      const { data: existing, error } = await db.from('sales_customers').select('biz').in('biz', bizList);
+      const existingSet = new Set((existing || []).map(r => r.biz));
+      const newCount = bizList.filter(b => !existingSet.has(b)).length;
+      document.getElementById('newCount').textContent = error ? '-' : newCount.toLocaleString() + '개';
+    } catch (err) {
+      document.getElementById('newCount').textContent = '-';
+    }
+
+    const preview = [...rows.entries()].slice(0, 10)
+      .map(([biz, name]) => `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(biz)}</td></tr>`).join('');
+    document.getElementById('rowPreview').innerHTML = preview;
+    previewCard.style.display = 'block';
+  }
+
+  document.getElementById('cancelBtn').addEventListener('click', () => {
+    parsedRows = null;
+    dropzone.classList.remove('filled');
+    document.getElementById('dzLabel').textContent = '클릭하거나 파일을 끌어다 놓으세요';
+    fileInput.value = '';
+    previewCard.style.display = 'none';
+    statusEl.className = 'status';
+  });
+
+  document.getElementById('saveBtn').addEventListener('click', async () => {
+    if (!parsedRows) return;
+    const saveStatus = document.getElementById('saveStatus');
+    showStatus(saveStatus, 'Supabase에 저장하는 중...', 'info');
+    try {
+      const payload = [...parsedRows.entries()].map(([biz, name]) => ({ biz, name, updated_at: new Date().toISOString() }));
+      // 500개씩 나눠서 upsert (한 번에 너무 많은 행을 보내면 실패할 수 있어 배치 처리)
+      const batchSize = 500;
+      for (let i = 0; i < payload.length; i += batchSize) {
+        const batch = payload.slice(i, i + batchSize);
+        const { error } = await db.from('sales_customers').upsert(batch, { onConflict: 'biz' });
+        if (error) throw error;
+      }
+      showStatus(saveStatus, `저장 완료! ${payload.length.toLocaleString()}개 거래처를 반영했습니다. 영업 대시보드에서 다음 매출 업로드부터 반영됩니다.`, 'ok');
+      refreshCurrentCount();
+    } catch (err) {
+      console.error(err);
+      showStatus(saveStatus, '저장 실패: ' + (err.message || String(err)) +
+        ' — Supabase 쓰기 권한(RLS 정책)이 열려 있는지 확인이 필요할 수 있습니다.', 'error');
+    }
+  });
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+</script>
+</body>
+</html>

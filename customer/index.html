@@ -137,6 +137,15 @@
 
   .empty-msg{font-size:13px;color:var(--text-muted);padding:20px 0;text-align:center;}
 
+  .card-clickable{cursor:pointer;transition:transform .12s ease,box-shadow .12s ease;}
+  .card-clickable:hover{transform:translateY(-2px);}
+  .card-toggle-icon{font-size:11px;color:var(--text-muted);margin-left:4px;}
+  .panel-head-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .btn-csv{flex-shrink:0;font-size:12px;font-weight:700;color:var(--accent);background:var(--accent-soft);
+    border:none;border-radius:8px;padding:7px 12px;cursor:pointer;white-space:nowrap;}
+  .btn-csv:hover{opacity:0.85;}
+  .btn-csv:active{transform:scale(0.97);}
+
   .status-msg{display:none;margin-top:20px;padding:14px 16px;border:1px solid var(--accent);
     background:var(--accent-soft);border-radius:10px;font-size:13px;color:#0a5c53;line-height:1.6;}
   .status-detail{display:block;opacity:.7;font-size:11px;margin-top:4px;}
@@ -233,10 +242,10 @@
       <div class="card-value" id="cardChurnedCount">-</div>
       <div class="card-delta">최근 2개월 연속 거래 없음</div>
     </div>
-    <div class="card">
-      <div class="card-label">위험군 거래처</div>
+    <div class="card card-clickable" id="cardAtRiskWrap">
+      <div class="card-label">위험군 거래처 <span class="card-toggle-icon" id="atRiskToggleIcon">▾</span></div>
       <div class="card-value" id="cardAtRiskCount">-</div>
-      <div class="card-delta">직전 달만 거래 없음</div>
+      <div class="card-delta">직전 달만 거래 없음 · 클릭해서 목록 보기</div>
     </div>
     <div class="card">
       <div class="card-label">신규 거래처</div>
@@ -245,10 +254,31 @@
     </div>
   </section>
 
+  <section class="panel" id="atRiskPanel" style="display:none;margin-top:16px;">
+    <div class="panel-head-row">
+      <div>
+        <h2 class="section-title">위험군 거래처</h2>
+        <p class="section-caption" id="atRiskCaption">직전 달만 거래 없는 거래처 (아직 이탈 확정 아님)</p>
+      </div>
+      <button class="btn-csv" id="atRiskCsvBtn">엑셀 저장</button>
+    </div>
+    <div class="table-scroll table-scroll-y">
+      <table class="list-table" id="atRiskTable">
+        <thead><tr><th>거래처</th><th>마지막 거래월</th><th style="text-align:right">마지막 금액</th></tr></thead>
+        <tbody><tr><td colspan="3">불러오는 중...</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
   <section class="bottom-grid">
     <div class="panel">
-      <h2 class="section-title">이탈 거래처</h2>
-      <p class="section-caption" id="churnedCaption">최근 2개월 연속 거래 없는 거래처 (마지막 거래 금액 기준 정렬)</p>
+      <div class="panel-head-row">
+        <div>
+          <h2 class="section-title">이탈 거래처</h2>
+          <p class="section-caption" id="churnedCaption">최근 2개월 연속 거래 없는 거래처 (마지막 거래 금액 기준 정렬)</p>
+        </div>
+        <button class="btn-csv" id="churnedCsvBtn">엑셀 저장</button>
+      </div>
       <div class="table-scroll table-scroll-y">
         <table class="list-table" id="churnedTable">
           <thead><tr><th>거래처</th><th>마지막 거래월</th><th style="text-align:right">마지막 금액</th></tr></thead>
@@ -257,8 +287,13 @@
       </div>
     </div>
     <div class="panel">
-      <h2 class="section-title">신규 거래처</h2>
-      <p class="section-caption" id="newBizCaption">이번 달 처음 거래한 거래처 (금액 기준 정렬)</p>
+      <div class="panel-head-row">
+        <div>
+          <h2 class="section-title">신규 거래처</h2>
+          <p class="section-caption" id="newBizCaption">이번 달 처음 거래한 거래처 (금액 기준 정렬)</p>
+        </div>
+        <button class="btn-csv" id="newBizCsvBtn">엑셀 저장</button>
+      </div>
       <div class="table-scroll table-scroll-y">
         <table class="list-table" id="newBizTable">
           <thead><tr><th>거래처</th><th style="text-align:right">이번 달 매출</th></tr></thead>
@@ -279,8 +314,9 @@
     1) SUPABASE_URL      → Project URL
     2) SUPABASE_ANON_KEY → anon public key
   */
-  const SUPABASE_URL = "https://mcypzsammvrthfqihkwy.supabase.co";
+const SUPABASE_URL = "https://mcypzsammvrthfqihkwy.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeXB6c2FtbXZydGhmcWloa3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzOTk1NzcsImV4cCI6MjEwMTk3NTU3N30.oUcfA-F0S9QHgpK56qvB0-aczx7AMPXDCtkVtNrJ3QM";
+
   // 이탈률 목표선(%) - 필요하면 이 숫자만 바꾸세요
   const CHURN_TARGET = 5.0;
 
@@ -658,7 +694,7 @@
           churned.push({ biz, name: info.name, lastKey, lastMonth: lastM, lastAmount: info.byMonth.get(lastKey) });
         } else if (prev1Key && hasPrev1) {
           // 직전 달엔 있었는데 이번 달만 없음 (아직 이탈 확정 아님)
-          atRisk.push({ biz, name: info.name });
+          atRisk.push({ biz, name: info.name, lastMonth: prev1, lastAmount: info.byMonth.get(prev1Key) });
         }
       } else {
         // 이번 달엔 있음 → 이전 달들에 전혀 없었으면 신규
@@ -670,6 +706,7 @@
     });
 
     churned.sort((a, b) => b.lastAmount - a.lastAmount);
+    atRisk.sort((a, b) => b.lastAmount - a.lastAmount);
     newBiz.sort((a, b) => b.amount - a.amount);
 
     return { latest, prev1, prev2, churned, atRisk, newBiz };
@@ -705,6 +742,67 @@
         <td class="num">${fmtWon(c.amount)}</td>
       </tr>`).join('');
   }
+
+  function renderAtRiskTable(status) {
+    const tbody = document.querySelector('#atRiskTable tbody');
+    const caption = document.getElementById('atRiskCaption');
+    if (!status || !status.atRisk.length) {
+      tbody.innerHTML = `<tr><td colspan="3">${emptyMsg('위험군 거래처가 없어요')}</td></tr>`;
+      return;
+    }
+    caption.textContent = `직전 달만 거래 없는 거래처 ${status.atRisk.length}곳 (아직 이탈 확정 아님, 마지막 거래 금액순)`;
+    tbody.innerHTML = status.atRisk.map(c => `
+      <tr>
+        <td class="name" title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</td>
+        <td>${monthLabel(c.lastMonth.year, c.lastMonth.month_num)}</td>
+        <td class="num">${fmtWon(c.lastAmount)}</td>
+      </tr>`).join('');
+  }
+
+  /* ---------- 엑셀(CSV) 저장 ---------- */
+  function downloadCSV(filename, headers, rows) {
+    const escCell = (v) => {
+      const s = String(v ?? '');
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const lines = [headers.map(escCell).join(',')];
+    rows.forEach(r => lines.push(r.map(escCell).join(',')));
+    const csv = '\uFEFF' + lines.join('\r\n'); // BOM 포함 (엑셀 한글 깨짐 방지)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function bindCsvButtons(status) {
+    document.getElementById('churnedCsvBtn').onclick = () => {
+      downloadCSV('이탈_거래처.csv', ['거래처', '마지막 거래월', '마지막 금액'],
+        status.churned.map(c => [c.name, monthLabel(c.lastMonth.year, c.lastMonth.month_num), c.lastAmount]));
+    };
+    document.getElementById('atRiskCsvBtn').onclick = () => {
+      downloadCSV('위험군_거래처.csv', ['거래처', '마지막 거래월', '마지막 금액'],
+        status.atRisk.map(c => [c.name, monthLabel(c.lastMonth.year, c.lastMonth.month_num), c.lastAmount]));
+    };
+    document.getElementById('newBizCsvBtn').onclick = () => {
+      downloadCSV('신규_거래처.csv', ['거래처', '이번 달 매출'],
+        status.newBiz.map(c => [c.name, c.amount]));
+    };
+  }
+
+  /* ---------- 위험군 카드 클릭 시 패널 토글 ---------- */
+  document.getElementById('cardAtRiskWrap').addEventListener('click', () => {
+    const panel = document.getElementById('atRiskPanel');
+    const icon = document.getElementById('atRiskToggleIcon');
+    const isHidden = panel.style.display === 'none';
+    panel.style.display = isHidden ? 'block' : 'none';
+    icon.textContent = isHidden ? '▴' : '▾';
+    if (isHidden) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
 
   function renderChurnCards(status) {
     if (!status) return;
@@ -751,7 +849,9 @@
       const bizStatus = computeBizStatus(salesCustomerRows);
       renderChurnCards(bizStatus);
       renderChurnedTable(bizStatus);
+      renderAtRiskTable(bizStatus);
       renderNewBizTable(bizStatus);
+      if (bizStatus) bindCsvButtons(bizStatus);
     } catch (e) {
       showError(e);
     }

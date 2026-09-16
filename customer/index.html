@@ -281,8 +281,6 @@
   */
   const SUPABASE_URL = "https://mcypzsammvrthfqihkwy.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeXB6c2FtbXZydGhmcWloa3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzOTk1NzcsImV4cCI6MjEwMTk3NTU3N30.oUcfA-F0S9QHgpK56qvB0-aczx7AMPXDCtkVtNrJ3QM";
-
-
   // 이탈률 목표선(%) - 필요하면 이 숫자만 바꾸세요
   const CHURN_TARGET = 5.0;
 
@@ -717,6 +715,22 @@
       `${monthLabel(status.latest[1].year, status.latest[1].month_num)} 기준`;
   }
 
+  /* ---------- 1000건 제한 없이 전체 행 가져오기 ---------- */
+  async function fetchAllRows(tableName) {
+    const pageSize = 1000;
+    let from = 0;
+    let all = [];
+    while (true) {
+      const { data, error } = await db.from(tableName).select('*').range(from, from + pageSize - 1);
+      if (error) throw error;
+      if (!data || !data.length) break;
+      all = all.concat(data);
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+    return all;
+  }
+
   /* ---------- 데이터 로드 ---------- */
   async function loadDashboard() {
     if (!isConfigured()) {
@@ -724,10 +738,7 @@
       return;
     }
     try {
-      const scRes = await db.from('sales_customer_monthly').select('*');
-      if (scRes.error) throw scRes.error;
-
-      const salesCustomerRows = scRes.data || [];
+      const salesCustomerRows = await fetchAllRows('sales_customer_monthly');
 
       hideStatus();
       const model = buildModel(salesCustomerRows);

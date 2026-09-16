@@ -1,1 +1,517 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>채권추심 현황</title>
+<link rel="stylesheet" as="style" crossorigin
+  href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<style>
+  :root{
+    --bg:#ffffff;
+    --surface:#ffffff;
+    --text:#1a1a1a;
+    --text-muted:#767268;
+    --border:#e9e6e1;
+    --border-soft:#f1efeb;
+    --accent:#4f46e5;
+    --accent-rgb:79,70,229;
+    --accent-soft:rgba(79,70,229,0.12);
+    --radius:16px;
+    --shadow:0 1px 2px rgba(20,20,20,0.04), 0 10px 28px rgba(20,20,20,0.05);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+    -webkit-font-smoothing:antialiased;
+    line-height:1.4;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:36px 20px 64px;}
 
+  .hub-link{
+    display:inline-flex;align-items:center;gap:5px;
+    font-size:12.5px;font-weight:600;color:var(--text-muted);
+    text-decoration:none;margin-bottom:20px;
+  }
+  .hub-link:hover{color:var(--accent);}
+
+  /* ---------- toolbar ---------- */
+  .toolbar{
+    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+    margin-bottom:24px;padding:14px 18px;background:var(--border-soft);border-radius:12px;
+  }
+  .toolbar-info{font-size:12.5px;color:var(--text-muted);font-weight:600;}
+  .toolbar-actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .btn-primary, .btn-secondary{
+    font-family:inherit;font-size:12.5px;font-weight:700;padding:9px 16px;border-radius:999px;
+    cursor:pointer;border:1px solid transparent;display:inline-flex;align-items:center;gap:6px;
+  }
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-secondary{background:#fff;color:var(--text);border-color:var(--border);}
+  .btn-secondary:hover{border-color:var(--accent);color:var(--accent);}
+
+  header{margin-bottom:28px;}
+  header h1{font-size:22px;font-weight:800;letter-spacing:-0.02em;}
+  header .header-sub{font-size:13px;color:var(--text-muted);margin-top:6px;}
+
+  .view-header{margin-bottom:20px;}
+  .back-link{
+    display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;
+    color:var(--text-muted);text-decoration:none;cursor:pointer;margin-bottom:10px;
+  }
+  .back-link:hover{color:var(--accent);}
+  .view-title{font-size:20px;font-weight:800;letter-spacing:-0.01em;}
+
+  .section-title{font-size:15px;font-weight:700;margin-bottom:16px;letter-spacing:-0.01em;}
+
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:22px 20px;}
+
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+  /* ---------- company cards ---------- */
+  .company-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;}
+  .company-card{
+    cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:22px 20px;box-shadow:var(--shadow);animation:fadeUp .5s ease both;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .company-card:hover{transform:translateY(-2px);box-shadow:0 4px 10px rgba(20,20,20,0.06), 0 16px 32px rgba(20,20,20,0.08);}
+  .company-grid .company-card:nth-child(1){animation-delay:.02s;}
+  .company-grid .company-card:nth-child(2){animation-delay:.06s;}
+  .company-grid .company-card:nth-child(3){animation-delay:.10s;}
+  .company-name{font-size:16px;font-weight:800;margin-bottom:16px;letter-spacing:-0.01em;}
+  .company-stat-row{display:flex;gap:24px;margin-bottom:16px;}
+  .company-stat .stat-label{font-size:11.5px;color:var(--text-muted);margin-bottom:4px;font-weight:600;}
+  .company-stat .stat-value{font-size:18px;font-weight:800;letter-spacing:-0.01em;}
+  .status-chip-row{display:flex;gap:6px;flex-wrap:wrap;}
+
+  .status-chip{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;
+    font-size:11px;font-weight:700;white-space:nowrap;}
+  .status-chip.apply{background:rgba(var(--accent-rgb),0.13);color:var(--accent);}
+  .status-chip.progress{background:rgba(var(--accent-rgb),0.32);color:var(--accent);}
+  .status-chip.done{background:var(--accent);color:#fff;}
+
+  /* ---------- empty state ---------- */
+  .empty-state{grid-column:1/-1;text-align:center;padding:56px 20px;}
+  .empty-state-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px;}
+  .empty-state-sub{font-size:13px;color:var(--text-muted);}
+
+  /* ---------- case list ---------- */
+  .filter-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+  .filter-tab{
+    font-family:inherit;padding:7px 14px;border-radius:999px;font-size:12.5px;font-weight:700;
+    border:1px solid var(--border);background:#fff;color:var(--text-muted);cursor:pointer;
+  }
+  .filter-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .data-table{width:100%;border-collapse:collapse;min-width:640px;}
+  .data-table th{font-size:11.5px;color:var(--text-muted);font-weight:700;text-align:left;
+    padding:0 12px 10px;white-space:nowrap;}
+  .data-table th:nth-child(4){text-align:right;}
+  .data-table td{font-size:13.5px;padding:13px 12px;border-bottom:1px solid var(--border-soft);
+    white-space:nowrap;}
+  .data-table td:nth-child(4){text-align:right;font-weight:700;}
+  .data-table tr:last-child td{border-bottom:none;}
+  .data-table tbody tr{cursor:pointer;transition:background .1s ease;}
+  .data-table tbody tr:hover{background:var(--border-soft);}
+  .td-name{font-weight:700;}
+
+  /* ---------- case detail ---------- */
+  .case-info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:18px;}
+  .info-label{font-size:11.5px;color:var(--text-muted);margin-bottom:6px;font-weight:600;}
+  .info-value{font-size:15px;font-weight:800;letter-spacing:-0.01em;}
+
+  .timeline{position:relative;padding-left:22px;}
+  .timeline::before{content:'';position:absolute;left:4px;top:4px;bottom:4px;width:2px;background:var(--border);}
+  .timeline-item{position:relative;padding-bottom:22px;}
+  .timeline-item:last-child{padding-bottom:0;}
+  .timeline-dot{position:absolute;left:-22px;top:3px;width:10px;height:10px;border-radius:50%;
+    background:var(--accent);border:2px solid #fff;box-shadow:0 0 0 1px var(--border);}
+  .timeline-date{font-size:12.5px;font-weight:800;margin-right:8px;}
+  .timeline-note{font-size:13px;color:var(--text-muted);margin-top:6px;line-height:1.6;}
+
+  .empty-msg{font-size:13px;color:var(--text-muted);padding:20px 0;text-align:center;}
+
+  .status-msg{display:none;margin-top:20px;padding:14px 16px;border:1px solid var(--accent);
+    background:var(--accent-soft);border-radius:10px;font-size:13px;color:#3730a3;line-height:1.6;}
+  .status-detail{display:block;opacity:.7;font-size:11px;margin-top:4px;}
+
+  @media (max-width:640px){
+    .wrap{padding:24px 14px 48px;}
+    .company-stat-row{gap:16px;}
+    .toolbar{flex-direction:column;align-items:flex-start;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none !important;transition:none !important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="hub-link" href="/">← 허브로 돌아가기</a>
+
+  <div class="toolbar">
+    <div class="toolbar-info" id="lastUpdated">아직 업로드된 데이터가 없어요</div>
+    <div class="toolbar-actions">
+      <button class="btn-secondary" onclick="downloadTemplate()">양식 다운로드</button>
+      <label class="btn-primary" for="fileInput">엑셀 업로드</label>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFile(event)" hidden>
+    </div>
+  </div>
+
+  <!-- ===== View 1: 회사 목록 ===== -->
+  <div id="viewCompanies">
+    <header>
+      <h1>채권추심 현황</h1>
+      <p class="header-sub">회사별 채권추심 신청 · 진행 · 종료 현황을 확인하세요.</p>
+    </header>
+    <div class="company-grid" id="companyGrid"></div>
+  </div>
+
+  <!-- ===== View 2: 회사별 사건 목록 ===== -->
+  <div id="viewCases" style="display:none">
+    <div class="view-header">
+      <a class="back-link" onclick="showCompanies()">← 회사 목록</a>
+      <div class="view-title" id="caseListTitle">-</div>
+    </div>
+    <div class="company-stat-row" id="caseListSummary" style="margin-bottom:18px;"></div>
+    <div class="filter-tabs">
+      <button class="filter-tab active" data-status="전체" onclick="setFilter('전체')">전체</button>
+      <button class="filter-tab" data-status="신청" onclick="setFilter('신청')">신청</button>
+      <button class="filter-tab" data-status="진행중" onclick="setFilter('진행중')">진행중</button>
+      <button class="filter-tab" data-status="종료" onclick="setFilter('종료')">종료</button>
+    </div>
+    <div class="panel">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr><th>회사명</th><th>사업자등록번호</th><th>대표자명</th><th>금액</th><th>상태</th><th>신청일자</th></tr>
+          </thead>
+          <tbody id="caseTbody">
+            <tr><td colspan="6" class="empty-msg">데이터가 없어요</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== View 3: 사건 상세 ===== -->
+  <div id="viewCaseDetail" style="display:none">
+    <div class="view-header">
+      <a class="back-link" onclick="showCases(currentCompany)">← <span id="caseDetailBackLabel">목록</span></a>
+      <div class="view-title" id="caseDetailTitle">-</div>
+    </div>
+    <div class="panel" style="margin-bottom:20px;">
+      <div class="case-info-grid" id="caseInfoGrid"></div>
+    </div>
+    <div class="panel">
+      <h2 class="section-title">진행 경과</h2>
+      <div class="timeline" id="timeline"></div>
+    </div>
+  </div>
+
+  <div id="statusMsg" class="status-msg"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+  /*
+    엑셀 업로드 방식입니다. 파일 안에 시트 2개가 있어야 해요.
+
+    [시트1 "사건"] 채권자 | 사건번호 | 회사명 | 사업자등록번호 | 대표자명 | 금액 | 상태 | 신청일자 | 종료일자
+    [시트2 "진행경과"] 사건번호 | 경과일자 | 상태 | 내용
+
+    - "사건번호"는 시트1과 시트2를 연결하는 값이라 전체에서 겹치지 않게 적어주세요.
+    - "상태"는 신청 / 진행중 / 종료 중 하나로 적어주세요.
+    - 상단 "양식 다운로드" 버튼을 누르면 이 구조 그대로 예시 파일을 받을 수 있어요.
+    - 새로 업로드하면 이전 데이터는 전부 새 파일 내용으로 교체됩니다.
+  */
+
+  const STORAGE_KEY = 'collectionsData';
+
+  let allCases = [];
+  let allProgress = [];
+  let currentCompany = null;
+  let currentFilter = '전체';
+
+  /* ---------- 유틸 ---------- */
+  const fmtWon = (n) => '₩' + Math.round(n || 0).toLocaleString('ko-KR');
+  const fmtNum = (n) => Math.round(n || 0).toLocaleString('ko-KR');
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (m) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[m]));
+  }
+  function jsStr(s) { return String(s ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+  function emptyMsg(t) { return `<div class="empty-msg">${escapeHtml(t)}</div>`; }
+
+  function showStatus(html) {
+    const el = document.getElementById('statusMsg');
+    el.innerHTML = html;
+    el.style.display = 'block';
+  }
+  function hideStatus() { document.getElementById('statusMsg').style.display = 'none'; }
+
+  function statusChip(status) {
+    const cls = status === '신청' ? 'apply' : status === '진행중' ? 'progress' : 'done';
+    return `<span class="status-chip ${cls}">${escapeHtml(status || '-')}</span>`;
+  }
+
+  function excelDateToStr(v) {
+    if (v === null || v === undefined || v === '') return '';
+    if (v instanceof Date) return v.toISOString().slice(0, 10);
+    if (typeof v === 'number') {
+      const ms = Math.round((v - 25569) * 86400 * 1000);
+      return new Date(ms).toISOString().slice(0, 10);
+    }
+    return String(v).trim();
+  }
+  function toNumber(v) {
+    if (v === null || v === undefined || v === '') return 0;
+    if (typeof v === 'number') return v;
+    return Number(String(v).replace(/,/g, '').trim()) || 0;
+  }
+
+  /* ---------- 엑셀 → 데이터 변환 ---------- */
+  function normalizeCase(row) {
+    return {
+      creditor_company: String(row['채권자'] ?? '').trim(),
+      case_no: String(row['사건번호'] ?? '').trim(),
+      company_name: String(row['회사명'] ?? '').trim(),
+      business_reg_no: String(row['사업자등록번호'] ?? '').trim(),
+      representative_name: String(row['대표자명'] ?? '').trim(),
+      amount: toNumber(row['금액']),
+      status: String(row['상태'] ?? '신청').trim() || '신청',
+      apply_date: excelDateToStr(row['신청일자']),
+      close_date: excelDateToStr(row['종료일자'])
+    };
+  }
+  function normalizeProgress(row) {
+    return {
+      case_no: String(row['사건번호'] ?? '').trim(),
+      progress_date: excelDateToStr(row['경과일자']),
+      status: String(row['상태'] ?? '').trim(),
+      note: String(row['내용'] ?? '').trim()
+    };
+  }
+
+  function handleFile(evt) {
+    const file = evt.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array', cellDates: true });
+
+        const caseSheetName = wb.SheetNames.find(n => n.includes('사건')) || wb.SheetNames[0];
+        const progressSheetName = wb.SheetNames.find(n => n.includes('경과')) || wb.SheetNames[1];
+
+        const caseRows = caseSheetName ? XLSX.utils.sheet_to_json(wb.Sheets[caseSheetName], { defval: '' }) : [];
+        const progressRows = progressSheetName ? XLSX.utils.sheet_to_json(wb.Sheets[progressSheetName], { defval: '' }) : [];
+
+        allCases = caseRows.map(normalizeCase).filter(c => c.company_name);
+        allProgress = progressRows.map(normalizeProgress).filter(p => p.case_no);
+
+        const payload = { cases: allCases, progress: allProgress, updatedAt: new Date().toISOString() };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+
+        updateLastUpdatedLabel(payload.updatedAt);
+        hideStatus();
+        showCompanies();
+        renderCompanies();
+      } catch (err) {
+        console.error(err);
+        showStatus(`⚠️ 엑셀 파일을 읽는 중 문제가 발생했어요. 양식(시트 이름·열 이름)이 맞는지 확인해 주세요.
+          <span class="status-detail">${escapeHtml(err?.message || err)}</span>`);
+      } finally {
+        evt.target.value = '';
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function updateLastUpdatedLabel(iso) {
+    const el = document.getElementById('lastUpdated');
+    if (!iso) { el.textContent = '아직 업로드된 데이터가 없어요'; return; }
+    const d = new Date(iso);
+    const s = d.toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    el.textContent = `마지막 업데이트: ${s}`;
+  }
+
+  function loadFromStorage() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const payload = JSON.parse(raw);
+        allCases = payload.cases || [];
+        allProgress = payload.progress || [];
+        updateLastUpdatedLabel(payload.updatedAt);
+      }
+    } catch (e) { console.error(e); }
+    renderCompanies();
+  }
+
+  function downloadTemplate() {
+    const caseHeaders = ['채권자', '사건번호', '회사명', '사업자등록번호', '대표자명', '금액', '상태', '신청일자', '종료일자'];
+    const caseSample = [
+      ['대상국제교역', '1', '(주)한빛물산', '123-45-67890', '김한빛', 15000000, '진행중', '2026-03-05', '']
+    ];
+    const progHeaders = ['사건번호', '경과일자', '상태', '내용'];
+    const progSample = [
+      ['1', '2026-03-05', '신청', '채권추심 신청 접수'],
+      ['1', '2026-03-20', '진행중', '채무자 내용증명 발송']
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.aoa_to_sheet([caseHeaders, ...caseSample]);
+    const ws2 = XLSX.utils.aoa_to_sheet([progHeaders, ...progSample]);
+    XLSX.utils.book_append_sheet(wb, ws1, '사건');
+    XLSX.utils.book_append_sheet(wb, ws2, '진행경과');
+    XLSX.writeFile(wb, '채권추심_업로드양식.xlsx');
+  }
+
+  /* ---------- 화면 전환 ---------- */
+  function showView(id) {
+    ['viewCompanies', 'viewCases', 'viewCaseDetail'].forEach(v => {
+      document.getElementById(v).style.display = (v === id) ? '' : 'none';
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  function showCompanies() {
+    currentCompany = null;
+    showView('viewCompanies');
+  }
+  function showCases(companyName) {
+    currentCompany = companyName;
+    currentFilter = '전체';
+    document.querySelectorAll('.filter-tab').forEach(el => {
+      el.classList.toggle('active', el.dataset.status === '전체');
+    });
+    showView('viewCases');
+    renderCaseListHeader();
+    renderCaseTable();
+  }
+  function setFilter(status) {
+    currentFilter = status;
+    document.querySelectorAll('.filter-tab').forEach(el => {
+      el.classList.toggle('active', el.dataset.status === status);
+    });
+    renderCaseTable();
+  }
+
+  /* ---------- 회사 카드 ---------- */
+  function renderCompanies() {
+    const grid = document.getElementById('companyGrid');
+    if (!allCases.length) {
+      grid.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-title">아직 업로드된 데이터가 없어요</div>
+          <div class="empty-state-sub">상단 "엑셀 업로드" 버튼으로 파일을 올리면 회사별 현황이 표시됩니다.</div>
+        </div>`;
+      return;
+    }
+
+    const companies = [...new Set(allCases.map(c => c.creditor_company))];
+    grid.innerHTML = companies.map(name => {
+      const rows = allCases.filter(c => c.creditor_company === name);
+      const total = rows.length;
+      const amount = rows.reduce((a, c) => a + (Number(c.amount) || 0), 0);
+      const applyCount = rows.filter(c => c.status === '신청').length;
+      const progressCount = rows.filter(c => c.status === '진행중').length;
+      const doneCount = rows.filter(c => c.status === '종료').length;
+      return `
+        <div class="company-card" onclick="showCases('${jsStr(name)}')">
+          <div class="company-name">${escapeHtml(name)}</div>
+          <div class="company-stat-row">
+            <div class="company-stat"><div class="stat-label">신청 건수</div><div class="stat-value">${fmtNum(total)}건</div></div>
+            <div class="company-stat"><div class="stat-label">총 채권추심금액</div><div class="stat-value">${fmtWon(amount)}</div></div>
+          </div>
+          <div class="status-chip-row">
+            <span class="status-chip apply">신청 ${applyCount}</span>
+            <span class="status-chip progress">진행중 ${progressCount}</span>
+            <span class="status-chip done">종료 ${doneCount}</span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  /* ---------- 사건 목록 ---------- */
+  function renderCaseListHeader() {
+    document.getElementById('caseListTitle').textContent = currentCompany;
+    const rows = allCases.filter(c => c.creditor_company === currentCompany);
+    const total = rows.length;
+    const amount = rows.reduce((a, c) => a + (Number(c.amount) || 0), 0);
+    document.getElementById('caseListSummary').innerHTML = `
+      <div class="company-stat"><div class="stat-label">신청 건수</div><div class="stat-value">${fmtNum(total)}건</div></div>
+      <div class="company-stat"><div class="stat-label">총 채권추심금액</div><div class="stat-value">${fmtWon(amount)}</div></div>`;
+  }
+
+  function renderCaseTable() {
+    const tbody = document.getElementById('caseTbody');
+    let rows = allCases.filter(c => c.creditor_company === currentCompany);
+    if (currentFilter !== '전체') rows = rows.filter(c => c.status === currentFilter);
+
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="6">${emptyMsg('해당 데이터가 없어요')}</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = rows.map(c => `
+      <tr onclick="showCaseDetail('${jsStr(c.case_no)}')">
+        <td class="td-name">${escapeHtml(c.company_name)}</td>
+        <td>${escapeHtml(c.business_reg_no || '-')}</td>
+        <td>${escapeHtml(c.representative_name || '-')}</td>
+        <td>${fmtWon(c.amount)}</td>
+        <td>${statusChip(c.status)}</td>
+        <td>${escapeHtml(c.apply_date || '-')}</td>
+      </tr>`).join('');
+  }
+
+  /* ---------- 사건 상세 ---------- */
+  function showCaseDetail(caseNo) {
+    const c = allCases.find(x => x.case_no === caseNo);
+    if (!c) return;
+
+    showView('viewCaseDetail');
+    document.getElementById('caseDetailTitle').textContent = c.company_name;
+    document.getElementById('caseDetailBackLabel').textContent = currentCompany;
+
+    document.getElementById('caseInfoGrid').innerHTML = `
+      <div><div class="info-label">회사명</div><div class="info-value">${escapeHtml(c.company_name)}</div></div>
+      <div><div class="info-label">사업자등록번호</div><div class="info-value">${escapeHtml(c.business_reg_no || '-')}</div></div>
+      <div><div class="info-label">대표자명</div><div class="info-value">${escapeHtml(c.representative_name || '-')}</div></div>
+      <div><div class="info-label">채권 금액</div><div class="info-value">${fmtWon(c.amount)}</div></div>
+      <div><div class="info-label">상태</div><div class="info-value">${statusChip(c.status)}</div></div>
+      <div><div class="info-label">신청일자</div><div class="info-value">${escapeHtml(c.apply_date || '-')}</div></div>
+      ${c.close_date ? `<div><div class="info-label">종료일자</div><div class="info-value">${escapeHtml(c.close_date)}</div></div>` : ''}
+    `;
+
+    const rows = allProgress
+      .filter(p => p.case_no === caseNo)
+      .sort((a, b) => (a.progress_date || '').localeCompare(b.progress_date || ''));
+    renderTimeline(rows);
+  }
+
+  function renderTimeline(rows) {
+    const el = document.getElementById('timeline');
+    if (!rows.length) { el.innerHTML = emptyMsg('등록된 진행 경과가 없어요'); return; }
+    el.innerHTML = rows.map(r => `
+      <div class="timeline-item">
+        <span class="timeline-dot"></span>
+        <span class="timeline-date">${escapeHtml(r.progress_date)}</span>
+        ${statusChip(r.status)}
+        ${r.note ? `<div class="timeline-note">${escapeHtml(r.note)}</div>` : ''}
+      </div>`).join('');
+  }
+
+  document.addEventListener('DOMContentLoaded', loadFromStorage);
+</script>
+</body>
+</html>

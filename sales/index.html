@@ -75,9 +75,6 @@
   .actions { display: flex; gap: 10px; margin-top: 18px; }
   .funnel-mini { display: flex; gap: 8px; flex-wrap: wrap; }
   .funnel-mini span { font-size: 12.5px; background: var(--color-primary-soft); color: var(--color-primary-dark); padding: 5px 10px; border-radius: 999px; font-weight: 600; }
-  .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
-  .tabs a { font-size: 13px; font-weight: 700; text-decoration: none; padding: 8px 16px; border-radius: 999px; color: var(--color-text-muted); background: #f2f3f5; }
-  .tabs a.active { color: #fff; background: var(--color-primary); }
   @media (max-width: 560px) {
     .drop-grid, .kpi-row { grid-template-columns: 1fr 1fr; }
   }
@@ -86,10 +83,6 @@
 <body>
 <div class="page">
   <div class="topnav"><a href="/">← 대시보드 허브</a><a href="/sales/">← 영업 대시보드</a></div>
-  <div class="tabs">
-    <a class="active" href="/sales/upload/">1. 매출자료 업로드</a>
-    <a href="/sales/upload/customers/">2. 거래처등록</a>
-  </div>
   <h1>매출자료 업로드</h1>
   <p class="subtitle">
     회계 프로그램에서 뽑은 "매출 부가세 집계표" CSV 2개(이번 달, 전달)를 올리면 거래처별 매출을 대조해서
@@ -300,22 +293,6 @@
     try {
       computed = computeMetrics(prev, curr, hasPrevData);
       computed.prevSource = prevSource;
-
-      // 거래처 마스터(sales_customers)에 등록된 거래처가 있으면 "①전체 거래처"를
-      // 최근 2개월 실거래 기준 근사치 대신 실제 등록 거래처 수로 바꿔치기합니다.
-      try {
-        const { count: masterCount, error: masterErr } = await db
-          .from('sales_customers').select('id', { count: 'exact', head: true });
-        if (!masterErr && masterCount && masterCount > 0) {
-          computed.totalCustomers = masterCount;
-          computed.avgDeal = masterCount > 0 ? computed.currSum / masterCount : 0;
-          computed.funnel[0] = { stage: '전체 거래처', count: masterCount };
-          computed.usingMasterCount = true;
-        }
-      } catch (err) {
-        console.error('거래처 마스터 조회 실패', err);
-      }
-
       renderPreview(computed);
       previewCard.style.display = 'block';
       showStatus(statusEl, `계산 완료 (전달 데이터 출처: ${prevSource})`, hasPrevData ? 'ok' : 'error');
@@ -395,10 +372,7 @@
       <div class="kpi-box"><div class="l">④ 평균증감율</div><div class="v small" style="color:${r.avgRate==null?'inherit':(r.avgRate>=0?'var(--good)':'var(--critical)')}">${r.avgRate==null ? '-' : (r.avgRate>=0?'+':'')+r.avgRate.toFixed(1)+'%'}</div></div>
     `;
     document.getElementById('funnelPreview').innerHTML = r.funnel.map(f => `<span>${f.stage}: ${f.count.toLocaleString()}건</span>`).join('') +
-      (achievement != null ? `<span>목표 달성률: ${achievement.toFixed(1)}%</span>` : '') +
-      (r.usingMasterCount
-        ? `<span style="background:#e4f4e1;color:var(--good)">등록 거래처 마스터 기준</span>`
-        : `<span style="background:#fff3cd;color:#8a6300">거래처 마스터 미등록 — 최근 2개월 실거래 근사치</span>`);
+      (achievement != null ? `<span>목표 달성률: ${achievement.toFixed(1)}%</span>` : '');
     document.getElementById('gainerPreview').innerHTML = r.gainers.map(g => `
       <tr><td>${escapeHtml(g.name)}</td><td class="num">${fmt(g.prev)}원</td><td class="num">${fmt(g.curr)}원</td><td class="num" style="color:var(--good)">+${g.rate.toFixed(1)}%</td></tr>
     `).join('') || '<tr><td colspan="4">조건(전달 매출 50만원 이상)을 만족하는 거래처가 없습니다.</td></tr>';
@@ -450,24 +424,22 @@
     }
 
     // 1) sales_monthly: 이번 달 행 갱신 또는 추가 (전체 누적 — 오래된 달을 지우지 않습니다)
-    // sort_order는 업로드한 "순서"가 아니라 실제 달 숫자(currMonthNum)로 고정합니다 —
-    // 1월~8월을 어떤 순서로 올리시든 그래프는 항상 달 순서(1,2,3...)대로 나오게 하기 위해서입니다.
     const { data: existingMonthly, error: monthlyReadErr } = await db.from('sales_monthly').select('*').order('sort_order', { ascending: true });
     if (monthlyReadErr) throw monthlyReadErr;
     const monthRow = {
       month: r.currMonthLabel,
-      sort_order: r.currMonthNum,
       revenue: Math.round(r.currSum / 10000),
       target: r.target != null ? Math.round(r.target / 10000) : null,
       total_customers: r.totalCustomers,
       avg_growth_rate: r.avgRate != null ? Math.round(r.avgRate * 10) / 10 : null,
     };
-    const existing = existingMonthly.find(m => m.month === r.currMonthLabel);
-    if (existing) {
-      const { error } = await db.from('sales_monthly').update(monthRow).eq('id', existing.id);
+    const last = existingMonthly[existingMonthly.length - 1];
+    if (last && last.month === r.currMonthLabel) {
+      const { error } = await db.from('sales_monthly').update(monthRow).eq('id', last.id);
       if (error) throw error;
     } else {
-      const { error } = await db.from('sales_monthly').insert(monthRow);
+      const nextSort = last ? last.sort_order + 1 : 1;
+      const { error } = await db.from('sales_monthly').insert({ ...monthRow, sort_order: nextSort });
       if (error) throw error;
     }
 

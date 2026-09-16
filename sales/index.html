@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>영업 대시보드 · 매출자료 업로드</title>
+<title>영업 대시보드</title>
 <link rel="stylesheet" as="style" crossorigin
   href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
 <style>
@@ -16,121 +16,156 @@
     --color-primary: #2454E0;
     --color-primary-dark: #16308C;
     --color-primary-soft: #EAF0FE;
-    --good: #0ca30c;
-    --critical: #d03b3b;
+    --color-primary-softer: #C7D9FB;
     --radius: 14px;
     --shadow-card: 0 1px 2px rgba(16,21,31,.04), 0 8px 24px -12px rgba(16,21,31,.08);
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: var(--color-bg); color: var(--color-text);
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text);
     font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
     -webkit-font-smoothing: antialiased;
   }
-  .page { max-width: 880px; margin: 0 auto; padding: 32px 24px 60px; }
-  .topnav { margin-bottom: 16px; display: flex; gap: 14px; }
-  .topnav a { color: var(--color-text-muted); text-decoration: none; font-size: 13px; font-weight: 600; }
+  .page { max-width: 1280px; margin: 0 auto; padding: 32px 24px 60px; }
+  .topnav { margin-bottom: 16px; }
+  .topnav a {
+    color: var(--color-text-muted); text-decoration: none;
+    font-size: 13px; font-weight: 600;
+  }
   .topnav a:hover { color: var(--color-text); }
-  h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 4px; }
-  .subtitle { font-size: 13px; color: var(--color-text-muted); margin: 0 0 24px; line-height: 1.6; }
+  .page-header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 16px; flex-wrap: wrap; margin-bottom: 28px;
+  }
+  h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 4px; }
+  .subtitle { font-size: 13px; color: var(--color-text-muted); margin: 0; }
+  .refresh-btn {
+    border: 1px solid var(--color-border); background: #fff; color: var(--color-primary);
+    font-weight: 600; font-size: 13px; padding: 9px 18px; border-radius: 999px;
+    cursor: pointer; transition: background .15s ease; font-family: inherit;
+  }
+  .refresh-btn:hover { background: var(--color-primary-soft); }
+  .refresh-btn:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
   .card {
     background: var(--color-surface); border: 1px solid var(--color-border);
-    border-radius: var(--radius); box-shadow: var(--shadow-card); padding: 22px 24px; margin-bottom: 16px;
+    border-radius: var(--radius); box-shadow: var(--shadow-card); padding: 20px 22px;
   }
-  .card h2 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
-  .card p.hint { font-size: 12.5px; color: var(--color-text-muted); margin: 0 0 16px; line-height: 1.6; }
-  .drop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .dropzone {
-    border: 2px dashed var(--color-border); border-radius: 12px; padding: 26px 16px;
-    text-align: center; cursor: pointer; transition: border-color .15s, background .15s; position: relative;
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+  .kpi-label { font-size: 12.5px; color: var(--color-text-muted); margin: 0 0 8px; font-weight: 600; }
+  .kpi-value { font-size: 22px; font-weight: 800; margin: 0; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .kpi-value .unit { font-size: 13px; font-weight: 600; color: var(--color-text-muted); margin-left: 4px; }
+  .kpi--main .kpi-value--xl { font-size: 34px; }
+  .kpi-sub { font-size: 12.5px; color: var(--color-text-muted); margin: 10px 0 0; }
+  .kpi-sub strong { color: var(--color-primary); font-weight: 700; }
+  .progress-track { margin-top: 12px; height: 8px; background: var(--color-primary-soft); border-radius: 999px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--color-primary); border-radius: 999px; transition: width .5s ease; }
+  .charts-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 16px; align-items: stretch; }
+  .chart-card h2, .rank-grid h2 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
+  .card-caption { font-size: 11.5px; color: var(--color-text-muted); margin: 0 0 14px; line-height: 1.5; }
+  .kpi-sub.up { color: #0ca30c; font-weight: 700; }
+  .kpi-sub.down { color: #d03b3b; font-weight: 700; }
+  .chart-wrap svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .legend { display: flex; gap: 16px; margin-top: 12px; font-size: 12px; color: var(--color-text-muted); flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot--strong { background: var(--color-primary); }
+  .dot--soft { background: var(--color-primary-softer); }
+  .dash { width: 14px; height: 0; border-top: 2px dashed var(--color-primary-dark); display: inline-block; }
+  svg .grid-line { stroke: var(--color-border); stroke-width: 1; }
+  svg .axis-label { font-size: 11px; fill: var(--color-text-muted); }
+  svg .axis-label--current { fill: var(--color-primary); font-weight: 700; }
+  svg .bar-value { font-size: 11px; fill: var(--color-text); font-weight: 600; }
+  svg .bar--soft { fill: var(--color-primary-softer); }
+  svg .bar--current { fill: var(--color-primary); }
+  svg .target-line { fill: none; stroke: var(--color-primary-dark); stroke-width: 2; stroke-dasharray: 6 5; opacity: .75; }
+  svg .funnel-label { font-size: 13px; font-weight: 700; }
+  svg .funnel-count { font-size: 11.5px; opacity: .9; }
+  svg .funnel-rate { font-size: 11.5px; fill: var(--color-primary-dark); font-weight: 700; }
+  svg .funnel-final { font-size: 13.5px; fill: var(--color-text); font-weight: 800; }
+  .rank-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .rank-list { display: flex; flex-direction: column; gap: 14px; }
+  .rank-row { display: flex; align-items: center; gap: 12px; }
+  .rank-no {
+    width: 22px; height: 22px; flex: none; border-radius: 50%;
+    background: var(--color-primary-soft); color: var(--color-primary-dark);
+    font-size: 11.5px; font-weight: 800; display: flex; align-items: center; justify-content: center;
   }
-  .dropzone:hover, .dropzone.drag { border-color: var(--color-primary); background: var(--color-primary-soft); }
-  .dropzone.filled { border-style: solid; border-color: var(--good); background: #e4f4e1; }
-  .dropzone .role { font-size: 11.5px; font-weight: 700; color: var(--color-primary); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
-  .dropzone .big { font-size: 13.5px; font-weight: 700; margin-bottom: 4px; }
-  .dropzone .small { font-size: 11.5px; color: var(--color-text-muted); }
-  input[type=file] { display: none; }
-  .status { font-size: 13px; margin-top: 14px; padding: 10px 14px; border-radius: 8px; display: none; line-height: 1.6; }
-  .status.show { display: block; }
-  .status.info { background: var(--color-primary-soft); color: var(--color-primary-dark); }
-  .status.error { background: #fbe9e7; color: var(--critical); }
-  .status.ok { background: #e4f4e1; color: var(--good); }
-  table.preview { width: 100%; border-collapse: collapse; font-size: 13px; }
-  table.preview th, table.preview td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--color-border); }
-  table.preview th { color: var(--color-text-muted); font-weight: 600; font-size: 12px; }
-  table.preview td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  .kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 18px; }
-  .kpi-box { border: 1px solid var(--color-border); border-radius: 10px; padding: 12px 14px; }
-  .kpi-box .l { font-size: 11.5px; color: var(--color-text-muted); margin-bottom: 6px; }
-  .kpi-box .v { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
-  .kpi-box .v.small { font-size: 14px; }
-  .btn {
-    border: none; background: var(--color-primary); color: #fff; font-weight: 700; font-size: 13.5px;
-    padding: 11px 22px; border-radius: 999px; cursor: pointer; font-family: inherit;
+  .rank-body { flex: 1; min-width: 0; }
+  .rank-top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; gap: 8px; }
+  .rank-name { font-weight: 600; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank-amount { font-weight: 700; color: var(--color-primary); font-variant-numeric: tabular-nums; flex: none; }
+  .rank-track { height: 6px; background: var(--color-primary-soft); border-radius: 999px; overflow: hidden; }
+  .rank-fill { height: 100%; background: var(--color-primary); border-radius: 999px; }
+  .footnote { text-align: center; font-size: 11.5px; color: var(--color-text-muted); margin-top: 24px; }
+  .empty { font-size: 13px; color: var(--color-text-muted); }
+  @media (max-width: 1024px) {
+    .charts-grid { grid-template-columns: 1fr; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   }
-  .btn:hover { background: var(--color-primary-dark); }
-  .btn:disabled { background: var(--color-border); color: var(--color-text-muted); cursor: not-allowed; }
-  .btn.secondary { background: #fff; color: var(--color-primary); border: 1px solid var(--color-border); }
-  .section-title { font-size: 13px; font-weight: 700; margin: 18px 0 8px; }
-  .actions { display: flex; gap: 10px; margin-top: 18px; }
-  .funnel-mini { display: flex; gap: 8px; flex-wrap: wrap; }
-  .funnel-mini span { font-size: 12.5px; background: var(--color-primary-soft); color: var(--color-primary-dark); padding: 5px 10px; border-radius: 999px; font-weight: 600; }
-  @media (max-width: 560px) {
-    .drop-grid, .kpi-row { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 640px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+    .rank-grid { grid-template-columns: 1fr; }
+    .kpi--main .kpi-value--xl { font-size: 28px; }
+    .page { padding: 20px 16px 40px; }
+    .page-header { align-items: flex-start; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
   }
 </style>
 </head>
 <body>
 <div class="page">
-  <div class="topnav"><a href="/">← 대시보드 허브</a><a href="/sales/">← 영업 대시보드</a></div>
-  <h1>매출자료 업로드</h1>
-  <p class="subtitle">
-    회계 프로그램에서 뽑은 "매출 부가세 집계표" CSV 2개(이번 달, 전달)를 올리면 거래처별 매출을 대조해서
-    8개 지표를 자동 계산합니다. 확인 후 저장을 눌러야 대시보드에 반영돼요.
-  </p>
-
-  <div class="card">
-    <h2>1. 파일 선택</h2>
-    <p class="hint"><b>이번 달 파일은 필수</b>이고, 전달 파일은 <b>선택</b>입니다 — 전달 파일을 넣지 않으면 이전에 저장해둔 전달 거래처별 매출을 자동으로 불러와 비교합니다 (처음 몇 달은 넣어주시고, 이후부터는 이번 달 파일 1개만 올리시면 됩니다). "매출 부가세 집계표"(L열 "금액(전)" 기준) 또는 "분기별 매출 집계표"(I열, "전표 입력분" 금액 기준) 형식을 자동으로 인식합니다 — 어느 쪽이든 거래처별 "전표 입력분" 매출액으로 집계됩니다.</p>
-    <div class="drop-grid">
-      <div class="dropzone" id="dropzoneA" data-slot="A">
-        <div class="role">이번 달 파일 (필수)</div>
-        <div class="big">클릭하거나 끌어다 놓기</div>
-        <div class="small" id="labelA">.csv</div>
-      </div>
-      <div class="dropzone" id="dropzoneB" data-slot="B">
-        <div class="role">전달 파일 (선택)</div>
-        <div class="big">클릭하거나 끌어다 놓기</div>
-        <div class="small" id="labelB">없으면 저장된 데이터 자동 사용</div>
-      </div>
+  <div class="topnav"><a href="/">← 대시보드 허브</a></div>
+  <header class="page-header">
+    <div>
+      <h1>영업 대시보드</h1>
+      <p class="subtitle" id="subtitle">데이터를 불러오는 중...</p>
     </div>
-    <input type="file" id="fileInputA" accept=".csv" />
-    <input type="file" id="fileInputB" accept=".csv" />
-    <div class="status" id="status"></div>
-  </div>
-
-  <div class="card" id="previewCard" style="display:none;">
-    <h2>2. 계산 결과 미리보기</h2>
-    <p class="hint" id="previewMeta"></p>
-    <div class="kpi-row" id="kpiPreview"></div>
-
-    <div class="section-title">거래처 활성화 퍼널 (3단계)</div>
-    <div class="funnel-mini" id="funnelPreview"></div>
-
-    <div class="section-title">매출증감율 상위 거래처 (Top 5)</div>
-    <table class="preview"><thead><tr><th>거래처</th><th class="num">전달</th><th class="num">이번달</th><th class="num">증감율</th></tr></thead><tbody id="gainerPreview"></tbody></table>
-
-    <div class="section-title">매출액 상위 거래처 (Top 5)</div>
-    <table class="preview"><thead><tr><th>거래처</th><th class="num">이번달 매출액</th></tr></thead><tbody id="sellerPreview"></tbody></table>
-
-    <div class="actions">
-      <button class="btn" id="saveBtn">Supabase에 저장</button>
-      <button class="btn secondary" id="cancelBtn">취소</button>
+    <div style="display:flex;gap:8px;">
+      <a href="/sales/upload/" class="refresh-btn" style="text-decoration:none;display:inline-block;">엑셀 업로드</a>
+      <button id="refreshBtn" class="refresh-btn" type="button">새로고침</button>
     </div>
-    <div class="status" id="saveStatus"></div>
-  </div>
+  </header>
+  <main>
+    <section class="kpi-grid" id="kpiGrid"></section>
+    <section class="charts-grid">
+      <div class="card chart-card">
+        <h2>월별 매출</h2>
+        <div class="chart-wrap">
+          <svg id="monthlyChart" viewBox="0 0 640 340" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+        <div class="legend">
+          <span class="legend-item"><i class="dot dot--strong"></i>이번 달</span>
+          <span class="legend-item"><i class="dot dot--soft"></i>이전 달</span>
+          <span class="legend-item"><i class="dash"></i>목표</span>
+        </div>
+      </div>
+      <div class="card chart-card">
+        <h2>거래처 활성화 퍼널</h2>
+        <p class="card-caption">영업단계(CRM) 데이터가 없어, 거래처 매출 활성도 흐름으로 구성했습니다.</p>
+        <div class="chart-wrap">
+          <svg id="funnelChart" viewBox="0 0 320 320" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+      </div>
+    </section>
+    <section class="rank-grid">
+      <div class="card">
+        <h2>매출증감율 상위 거래처</h2>
+        <p class="card-caption">담당자 데이터가 없어, 전월대비 매출증감율 상위 거래처로 대체했습니다.</p>
+        <div id="personRank" class="rank-list"></div>
+      </div>
+      <div class="card">
+        <h2>매출액 상위 거래처</h2>
+        <p class="card-caption">상품 데이터가 없어, 이번 달 매출액 상위 거래처로 대체했습니다.</p>
+        <div id="productRank" class="rank-list"></div>
+      </div>
+    </section>
+  </main>
+  <p class="footnote">금액 단위: 만원</p>
 </div>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   const { createClient } = supabase;
@@ -138,327 +173,215 @@
     "https://mcypzsammvrthfqihkwy.supabase.co",
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeXB6c2FtbXZydGhmcWloa3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzOTk1NzcsImV4cCI6MjEwMTk3NTU3N30.oUcfA-F0S9QHgpK56qvB0-aczx7AMPXDCtkVtNrJ3QM"
   );
-
-  const fmt = (n) => Math.round(n || 0).toLocaleString('ko-KR');
-  const statusEl = document.getElementById('status');
-  const previewCard = document.getElementById('previewCard');
-  const slots = { A: null, B: null }; // { fileName, month, year, rows: Map(biz -> {name, amount}), sum }
-  let computed = null;
-
-  ['A', 'B'].forEach((slot) => {
-    const zone = document.getElementById('dropzone' + slot);
-    const input = document.getElementById('fileInput' + slot);
-    zone.addEventListener('click', () => input.click());
-    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag'); });
-    zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
-    zone.addEventListener('drop', (e) => {
-      e.preventDefault(); zone.classList.remove('drag');
-      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0], slot);
-    });
-    input.addEventListener('change', (e) => { if (e.target.files.length) handleFile(e.target.files[0], slot); });
-  });
-
-  function showStatus(el, msg, kind) {
-    el.textContent = msg;
-    el.className = 'status show ' + kind;
-  }
-
-  function handleFile(file, slot) {
-    showStatus(statusEl, `"${file.name}" 읽는 중...`, 'info');
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const text = new TextDecoder('euc-kr').decode(new Uint8Array(e.target.result));
-        const parsed = parseVatSummary(text, file.name);
-        slots[slot] = parsed;
-        const zone = document.getElementById('dropzone' + slot);
-        const label = document.getElementById('label' + slot);
-        zone.classList.add('filled');
-        label.textContent = `${parsed.monthLabel} (${parsed.year}) · ${parsed.rows.size.toLocaleString()}개 거래처 · ${file.name}`;
-        showStatus(statusEl, `"${file.name}" → ${parsed.monthLabel} 매출자료로 인식했습니다.`, 'ok');
-        attemptCompute();
-      } catch (err) {
-        console.error(err);
-        showStatus(statusEl, `"${file.name}" 처리 중 오류: ` + (err.message || String(err)), 'error');
-      }
-    };
-    reader.onerror = () => showStatus(statusEl, '파일을 읽지 못했습니다.', 'error');
-    reader.readAsArrayBuffer(file);
-  }
-
-  // ---- parse one "매출 부가세 집계표" CSV (cp949/euc-kr encoded) ----
-  function parseVatSummary(text, fileName) {
-    const lines = text.split(/\r?\n/);
-    // 기간 추출: 첫 줄 어딘가의 YYYY.MM.DD 형태에서 월을 읽는다
-    const dateMatch = text.match(/(\d{4})\.(\d{2})\.(\d{2})/);
-    if (!dateMatch) throw new Error('첫 줄에서 집계 기간(YYYY.MM.DD)을 찾지 못했습니다.');
-    const year = dateMatch[1];
-    const monthNum = parseInt(dateMatch[2], 10);
-    const monthLabel = `${monthNum}월`;
-
-    // 이 회사에서 받는 매출 집계표는 두 가지 형식이 섞여 있어 둘 다 지원한다.
-    // 형식 A: "매출 부가세 집계표" — "거래처/사업자번호" 이름표가 붙은 헤더 행이 있고,
-    //         매출액은 "금액(전)" 열(전표 입력분, 보통 L열)에 있다.
-    // 형식 B: "분기별 매출 집계표" — 이름표 붙은 헤더 행이 따로 없고, 대신 "발행분 / 전표 입력분"
-    //         그룹 라벨 행만 있으며 거래처 데이터가 곧바로 시작한다. 매출액은 "전표 입력분" 그룹의
-    //         첫 열(금액, 보통 I열)에 있다.
-    const bizNoRe = /^\d{3}-\d{2}-\d{5}$/; // 사업자번호 형식 000-00-00000
-
-    let headerIdx = -1, header = null;
-    for (let i = 0; i < lines.length; i++) {
-      const cells = lines[i].split(',').map(c => c.trim());
-      if (cells[0] === '거래처' && cells.includes('사업자번호')) { headerIdx = i; header = cells; break; }
-    }
-
-    let idxName = 0, idxBiz = 1, idxAmount, dataStartIdx;
-
-    if (header) {
-      // 형식 A
-      idxName = header.indexOf('거래처');
-      idxBiz = header.indexOf('사업자번호');
-      idxAmount = header.indexOf('금액(전)');
-      if (idxAmount === -1) throw new Error('"금액(전)" 열(L열)을 찾지 못했습니다.');
-      dataStartIdx = headerIdx + 1;
-    } else {
-      // 형식 B: "전표 입력분" 그룹 라벨이 있는 열을 매출액 열로 사용 (보통 I열)
-      let groupIdx = -1;
-      for (let i = 0; i < Math.min(lines.length, 10); i++) {
-        const cells = lines[i].split(',').map(c => c.trim());
-        const idx = cells.indexOf('전표 입력분');
-        if (idx !== -1) { groupIdx = idx; break; }
-      }
-      idxAmount = groupIdx !== -1 ? groupIdx : 8; // 못 찾으면 I열(인덱스 8)로 기본 처리
-      // 데이터 시작 행: 두 번째 칸이 사업자번호 형식(000-00-00000)인 첫 줄
-      dataStartIdx = -1;
-      for (let i = 0; i < lines.length; i++) {
-        const cells = lines[i].split(',').map(c => c.trim());
-        if (bizNoRe.test(cells[1] || '')) { dataStartIdx = i; break; }
-      }
-      if (dataStartIdx === -1) throw new Error('데이터 시작 행(거래처/사업자번호)을 찾지 못했습니다.');
-    }
-
-    const rows = new Map(); // biz -> { name, amount }
-    for (let i = dataStartIdx; i < lines.length; i++) {
-      const cells = lines[i].split(',').map(c => c.trim());
-      const name = cells[idxName];
-      if (!name || name === '총계') continue;
-      const biz = cells[idxBiz] || name; // 사업자번호가 없으면 이름으로 대체
-      const amount = Number((cells[idxAmount] || '').replace(/[^\d-]/g, '')) || 0;
-      if (rows.has(biz)) {
-        rows.get(biz).amount += amount; // 같은 사업자번호가 여러 줄이면 합산
-      } else {
-        rows.set(biz, { name, amount });
-      }
-    }
-    if (!rows.size) throw new Error('데이터 행을 찾지 못했습니다.');
-    return { fileName, year, monthNum, monthLabel, rows };
-  }
-
-  // 이번 달 파일(A)은 필수, 전달 파일(B)은 선택 — 없으면 Supabase에 저장된 직전 달
-  // 거래처별 매출(sales_customer_monthly)을 자동으로 불러와 비교합니다.
-  async function attemptCompute() {
-    const curr = slots.A;
-    if (!curr) return;
-    let prev = slots.B;
-    let hasPrevData = true;
-    let prevSource = '업로드한 전달 파일';
-
-    if (!prev) {
-      showStatus(statusEl, '전달 파일이 없어 저장된 데이터에서 전달 매출을 찾는 중...', 'info');
-      const prevMonthNum = curr.monthNum - 1;
-      if (prevMonthNum >= 1) {
-        try {
-          const { data, error } = await db.from('sales_customer_monthly')
-            .select('biz,name,amount')
-            .eq('year', Number(curr.year))
-            .eq('month_num', prevMonthNum);
-          if (error) throw error;
-          if (data && data.length) {
-            const rowsMap = new Map();
-            data.forEach(r => rowsMap.set(r.biz, { name: r.name, amount: r.amount }));
-            prev = { year: curr.year, monthNum: prevMonthNum, monthLabel: `${prevMonthNum}월`, rows: rowsMap };
-            prevSource = `저장된 ${prevMonthNum}월 데이터 (${data.length.toLocaleString()}개 거래처)`;
-          }
-        } catch (err) {
-          console.error(err);
-        }
-      }
-      if (!prev) {
-        hasPrevData = false;
-        prev = { year: curr.year, monthNum: prevMonthNum, monthLabel: prevMonthNum >= 1 ? `${prevMonthNum}월` : '(없음)', rows: new Map() };
-        prevSource = '없음 — 이번 달이 첫 등록 달로 처리됩니다';
-      }
-    }
-
-    try {
-      computed = computeMetrics(prev, curr, hasPrevData);
-      computed.prevSource = prevSource;
-      renderPreview(computed);
-      previewCard.style.display = 'block';
-      showStatus(statusEl, `계산 완료 (전달 데이터 출처: ${prevSource})`, hasPrevData ? 'ok' : 'error');
-    } catch (err) {
-      console.error(err);
-      showStatus(statusEl, '계산 중 오류: ' + (err.message || String(err)), 'error');
-    }
-  }
-
-  // ---- core calculation: compare curr vs prev by 사업자번호 ----
-  function computeMetrics(prev, curr, hasPrevData) {
-    const allBiz = new Set([...prev.rows.keys(), ...curr.rows.keys()]);
-    let currSum = 0, prevSum = 0;
-    let activeCount = 0, growCount = 0, newCount = 0;
-    const numericRates = [];
-    const parsed = [];
-
-    allBiz.forEach((biz) => {
-      const p = prev.rows.get(biz);
-      const c = curr.rows.get(biz);
-      const prevAmt = p ? p.amount : 0;
-      const currAmt = c ? c.amount : 0;
-      const name = (c || p).name;
-      currSum += currAmt; prevSum += prevAmt;
-      if (currAmt > 0) activeCount++;
-      let rate = null, isNew = false;
-      if (prevAmt > 0) {
-        rate = (currAmt - prevAmt) / prevAmt;
-        numericRates.push(rate);
-        if (rate > 0) growCount++;
-      } else if (currAmt > 0) {
-        isNew = true; newCount++;
-      }
-      parsed.push({ name, prev: prevAmt, curr: currAmt, rate: rate != null ? rate : (isNew ? '신규' : null) });
-    });
-
-    const totalCustomers = allBiz.size;
-    const target = hasPrevData ? prevSum * 1.05 : null;
-    const avgRate = hasPrevData && numericRates.length ? (numericRates.reduce((a, b) => a + b, 0) / numericRates.length) * 100 : null;
-
-    // 3단계 퍼널: 전체 거래처 → 이번달 매출발생 → 전월대비 매출증가(신규 포함)
-    // 전달 데이터가 전혀 없는 첫 등록 달은 "매출증가"를 계산할 기준이 없어 0으로 둡니다.
-    const funnel = [
-      { stage: '전체 거래처', count: totalCustomers },
-      { stage: '이번달 매출발생', count: activeCount },
-      { stage: '전월대비 매출증가', count: hasPrevData ? growCount + newCount : 0 },
-    ];
-
-    const gainers = hasPrevData ? parsed
-      .filter(r => typeof r.rate === 'number' && r.prev >= 500000)
-      .sort((a, b) => b.rate - a.rate)
-      .slice(0, 5)
-      .map(r => ({ name: r.name, prev: r.prev, curr: r.curr, rate: r.rate * 100 })) : [];
-
-    const sellers = [...parsed].sort((a, b) => b.curr - a.curr).slice(0, 5)
-      .map(r => ({ name: r.name, amount: r.curr }));
-
-    return {
-      prevMonthLabel: prev.monthLabel, currMonthLabel: curr.monthLabel,
-      currSum, prevSum, target, totalCustomers, avgRate, funnel, gainers, sellers, hasPrevData,
-      avgDeal: totalCustomers > 0 ? currSum / totalCustomers : 0,
-      currRows: curr.rows, prevRows: hasPrevData ? prev.rows : null,
-      currYear: curr.year, currMonthNum: curr.monthNum,
-      prevYear: prev.year, prevMonthNum: prev.monthNum,
-    };
-  }
-
-  function renderPreview(r) {
-    const achievement = r.target > 0 ? (r.currSum / r.target) * 100 : null;
-    document.getElementById('previewMeta').textContent = r.hasPrevData
-      ? `${r.prevMonthLabel} → ${r.currMonthLabel} 대조 결과입니다 (전달 데이터: ${r.prevSource}). 저장 시 이번 달(${r.currMonthLabel}) 기준으로 반영됩니다.`
-      : `전달 데이터가 없어 ${r.currMonthLabel}을(를) 첫 등록 달로 저장합니다 — 목표/평균증감율/상위거래처는 다음 달부터 계산됩니다.`;
-    document.getElementById('kpiPreview').innerHTML = `
-      <div class="kpi-box"><div class="l">① 이번 달 매출</div><div class="v">${fmt(r.currSum/10000)}만원</div></div>
-      <div class="kpi-box"><div class="l">② 목표 (전달×105%)</div><div class="v">${r.target != null ? fmt(r.target/10000)+'만원' : '-'}</div></div>
-      <div class="kpi-box"><div class="l">③ 객단가</div><div class="v small">${fmt(r.avgDeal/10000)}만원</div></div>
-      <div class="kpi-box"><div class="l">④ 평균증감율</div><div class="v small" style="color:${r.avgRate==null?'inherit':(r.avgRate>=0?'var(--good)':'var(--critical)')}">${r.avgRate==null ? '-' : (r.avgRate>=0?'+':'')+r.avgRate.toFixed(1)+'%'}</div></div>
-    `;
-    document.getElementById('funnelPreview').innerHTML = r.funnel.map(f => `<span>${f.stage}: ${f.count.toLocaleString()}건</span>`).join('') +
-      (achievement != null ? `<span>목표 달성률: ${achievement.toFixed(1)}%</span>` : '');
-    document.getElementById('gainerPreview').innerHTML = r.gainers.map(g => `
-      <tr><td>${escapeHtml(g.name)}</td><td class="num">${fmt(g.prev)}원</td><td class="num">${fmt(g.curr)}원</td><td class="num" style="color:var(--good)">+${g.rate.toFixed(1)}%</td></tr>
-    `).join('') || '<tr><td colspan="4">조건(전달 매출 50만원 이상)을 만족하는 거래처가 없습니다.</td></tr>';
-    document.getElementById('sellerPreview').innerHTML = r.sellers.map(s => `
-      <tr><td>${escapeHtml(s.name)}</td><td class="num">${fmt(s.amount/10000)}만원</td></tr>
-    `).join('');
-  }
-
+  const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
   function escapeHtml(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
-
-  document.getElementById('cancelBtn').addEventListener('click', () => {
-    computed = null;
-    previewCard.style.display = 'none';
-  });
-
-  document.getElementById('saveBtn').addEventListener('click', async () => {
-    if (!computed) return;
-    const saveStatus = document.getElementById('saveStatus');
-    showStatus(saveStatus, 'Supabase에 저장하는 중...', 'info');
+  async function loadDashboard() {
+    const subtitle = document.getElementById('subtitle');
+    subtitle.textContent = '데이터를 불러오는 중...';
     try {
-      await saveToSupabase(computed);
-      showStatus(saveStatus, '저장 완료! 영업 대시보드에서 새로고침하면 바로 반영됩니다.', 'ok');
+      const [monthlyRes, pipelineRes, rankRes] = await Promise.all([
+        db.from('sales_monthly').select('*').order('sort_order', { ascending: true }),
+        db.from('sales_pipeline').select('*').order('sort_order', { ascending: true }),
+        db.from('sales_rank').select('*').order('amount', { ascending: false }),
+      ]);
+      if (monthlyRes.error) throw monthlyRes.error;
+      if (pipelineRes.error) throw pipelineRes.error;
+      if (rankRes.error) throw rankRes.error;
+      const monthly = monthlyRes.data || [];
+      const pipeline = pipelineRes.data || [];
+      const rank = rankRes.data || [];
+      if (!monthly.length || !pipeline.length) {
+        subtitle.textContent = '표시할 데이터가 없습니다.';
+        return;
+      }
+      renderKPI(monthly, pipeline);
+      renderMonthlyChart(monthly);
+      renderFunnel(pipeline);
+      renderRank('personRank', rank.filter(r => r.kind === 'gainer'), 'gainer');
+      renderRank('productRank', rank.filter(r => r.kind === 'seller'), 'seller');
+      const now = new Date();
+      subtitle.textContent = '기준월: ' + monthly[monthly.length - 1].month + ' · 마지막 업데이트 ' +
+        now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
     } catch (err) {
       console.error(err);
-      showStatus(saveStatus, '저장 실패: ' + (err.message || String(err)) +
-        ' — Supabase 쓰기 권한(RLS 정책)이 열려 있는지 확인이 필요할 수 있습니다.', 'error');
-    }
-  });
-
-  function mapToCustomerRows(map, year, monthNum) {
-    const out = [];
-    map.forEach((v, biz) => out.push({ biz, name: v.name, year: Number(year), month_num: monthNum, amount: v.amount }));
-    return out;
-  }
-
-  async function saveToSupabase(r) {
-    // 0) 거래처×월 히스토리 저장 — 다음 달 업로드 때 "전달 파일 없이" 비교할 수 있게 함
-    const currCustomerRows = mapToCustomerRows(r.currRows, r.currYear, r.currMonthNum);
-    const { error: custCurrErr } = await db.from('sales_customer_monthly')
-      .upsert(currCustomerRows, { onConflict: 'biz,year,month_num' });
-    if (custCurrErr) throw custCurrErr;
-    if (r.hasPrevData && r.prevRows) {
-      const prevCustomerRows = mapToCustomerRows(r.prevRows, r.prevYear, r.prevMonthNum);
-      const { error: custPrevErr } = await db.from('sales_customer_monthly')
-        .upsert(prevCustomerRows, { onConflict: 'biz,year,month_num' });
-      if (custPrevErr) throw custPrevErr;
-    }
-
-    // 1) sales_monthly: 이번 달 행 갱신 또는 추가 (전체 누적 — 오래된 달을 지우지 않습니다)
-    const { data: existingMonthly, error: monthlyReadErr } = await db.from('sales_monthly').select('*').order('sort_order', { ascending: true });
-    if (monthlyReadErr) throw monthlyReadErr;
-    const monthRow = {
-      month: r.currMonthLabel,
-      revenue: Math.round(r.currSum / 10000),
-      target: r.target != null ? Math.round(r.target / 10000) : null,
-      total_customers: r.totalCustomers,
-      avg_growth_rate: r.avgRate != null ? Math.round(r.avgRate * 10) / 10 : null,
-    };
-    const last = existingMonthly[existingMonthly.length - 1];
-    if (last && last.month === r.currMonthLabel) {
-      const { error } = await db.from('sales_monthly').update(monthRow).eq('id', last.id);
-      if (error) throw error;
-    } else {
-      const nextSort = last ? last.sort_order + 1 : 1;
-      const { error } = await db.from('sales_monthly').insert({ ...monthRow, sort_order: nextSort });
-      if (error) throw error;
-    }
-
-    // 2) sales_pipeline / sales_rank: 이번 달 기준 스냅샷으로 교체
-    const { error: delPipeErr } = await db.from('sales_pipeline').delete().gte('id', 0);
-    if (delPipeErr) throw delPipeErr;
-    const pipelineRows = r.funnel.map((f, i) => ({ sort_order: i + 1, stage: f.stage, count: f.count }));
-    const { error: insPipeErr } = await db.from('sales_pipeline').insert(pipelineRows);
-    if (insPipeErr) throw insPipeErr;
-
-    const { error: delRankErr } = await db.from('sales_rank').delete().gte('id', 0);
-    if (delRankErr) throw delRankErr;
-    const gainerRows = r.gainers.map(g => ({ kind: 'gainer', name: g.name, amount: Math.round(g.curr / 10000), rate: Math.round(g.rate * 10) / 10 }));
-    const sellerRows = r.sellers.map(s => ({ kind: 'seller', name: s.name, amount: Math.round(s.amount / 10000), rate: null }));
-    if (gainerRows.length || sellerRows.length) {
-      const { error: insRankErr } = await db.from('sales_rank').insert([...gainerRows, ...sellerRows]);
-      if (insRankErr) throw insRankErr;
+      subtitle.textContent = '데이터를 불러오지 못했습니다: ' + (err.message || String(err));
     }
   }
+  function renderKPI(monthly, pipeline) {
+    const cur = monthly[monthly.length - 1];
+    const achievement = cur.target > 0 ? (cur.revenue / cur.target) * 100 : 0;
+    const remaining = cur.target - cur.revenue;
+    const barWidth = Math.min(Math.max(achievement, 0), 100);
+
+    // ③ 객단가: 매출 ÷ 전체 거래처수 (거래처 원장에 계약 건수 개념이 없어 이렇게 대체)
+    const hasCustomerCount = cur.total_customers != null && cur.total_customers > 0;
+    const totalCustomers = hasCustomerCount ? cur.total_customers : (pipeline[0] ? pipeline[0].count : 0);
+    const avgDeal = totalCustomers > 0 ? Math.round(cur.revenue / totalCustomers) : 0;
+
+    // ④ 매출 평균증감율: 계약 단계 데이터가 없어 거래처별 전월대비 증감율 평균으로 대체
+    const hasGrowthRate = cur.avg_growth_rate != null;
+    const growthRate = hasGrowthRate ? cur.avg_growth_rate : 0;
+    const growthDir = growthRate >= 0 ? 'up' : 'down';
+    const growthSign = growthRate >= 0 ? '+' : '';
+
+    document.getElementById('kpiGrid').innerHTML = `
+      <div class="card kpi kpi--main">
+        <p class="kpi-label">① 이번 달 매출 (${escapeHtml(cur.month)})</p>
+        <p class="kpi-value kpi-value--xl">${fmt(cur.revenue)}<span class="unit">만원</span></p>
+        <div class="progress-track"><div class="progress-fill" style="width:${barWidth}%"></div></div>
+        <p class="kpi-sub">목표 대비 <strong>${achievement.toFixed(1)}%</strong> 달성</p>
+      </div>
+      <div class="card kpi">
+        <p class="kpi-label">② 이번 달 목표 (전달×105%)</p>
+        <p class="kpi-value">${fmt(cur.target)}<span class="unit">만원</span></p>
+        <p class="kpi-sub">${remaining > 0 ? '남은 금액 ' + fmt(remaining) + '만원' : '목표 초과 +' + fmt(Math.abs(remaining)) + '만원'}</p>
+      </div>
+      <div class="card kpi">
+        <p class="kpi-label">③ 객단가 (매출 ÷ 전체 거래처수)</p>
+        <p class="kpi-value">${fmt(avgDeal)}<span class="unit">만원</span></p>
+        <p class="kpi-sub">전체 거래처 ${fmt(totalCustomers)}곳 기준</p>
+      </div>
+      <div class="card kpi">
+        <p class="kpi-label">④ 매출 평균증감율</p>
+        <p class="kpi-value">${growthSign}${growthRate.toFixed(1)}<span class="unit">%</span></p>
+        <p class="kpi-sub ${growthDir}">거래처별 전월대비 증감율 평균</p>
+      </div>
+    `;
+  }
+  function renderMonthlyChart(monthly) {
+    const svg = document.getElementById('monthlyChart');
+    const W = 640, H = 340;
+    const marginLeft = 46, marginRight = 16, marginTop = 24, marginBottom = 40;
+    const plotW = W - marginLeft - marginRight;
+    const plotH = H - marginTop - marginBottom;
+    const n = monthly.length;
+    const maxVal = Math.max(...monthly.map(m => Math.max(m.revenue, m.target))) * 1.15 || 1;
+    const slot = plotW / n;
+    const barW = slot * 0.5;
+    const yFor = (v) => marginTop + plotH - (v / maxVal) * plotH;
+    const xForCenter = (i) => marginLeft + i * slot + slot / 2;
+    let gridLines = '';
+    const ticks = 4;
+    for (let t = 0; t <= ticks; t++) {
+      const v = (maxVal / ticks) * t;
+      const y = yFor(v);
+      gridLines += `<line x1="${marginLeft}" y1="${y}" x2="${W - marginRight}" y2="${y}" class="grid-line" />`;
+      gridLines += `<text x="${marginLeft - 8}" y="${y + 4}" class="axis-label" text-anchor="end">${fmt(Math.round(v))}</text>`;
+    }
+    let bars = '', xLabels = '';
+    monthly.forEach((m, i) => {
+      const x = marginLeft + i * slot + (slot - barW) / 2;
+      const h = (m.revenue / maxVal) * plotH;
+      const y = marginTop + plotH - h;
+      const isCurrent = i === n - 1;
+      bars += `
+        <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" class="${isCurrent ? 'bar bar--current' : 'bar bar--soft'}">
+          <title>${escapeHtml(m.month)}: ${fmt(m.revenue)}만원</title>
+        </rect>
+        <text x="${x + barW / 2}" y="${y - 8}" text-anchor="middle" class="bar-value">${fmt(m.revenue)}</text>
+      `;
+      xLabels += `<text x="${x + barW / 2}" y="${H - marginBottom + 20}" text-anchor="middle" class="axis-label ${isCurrent ? 'axis-label--current' : ''}">${escapeHtml(m.month)}</text>`;
+    });
+    const targetPoints = monthly.map((m, i) => `${xForCenter(i)},${yFor(m.target)}`).join(' ');
+    svg.innerHTML = `${gridLines}${bars}<polyline points="${targetPoints}" class="target-line" />${xLabels}`;
+  }
+  function lerpColor(light, dark, t) {
+    const r = Math.round(light[0] + (dark[0] - light[0]) * t);
+    const g = Math.round(light[1] + (dark[1] - light[1]) * t);
+    const b = Math.round(light[2] + (dark[2] - light[2]) * t);
+    return `rgb(${r},${g},${b})`;
+  }
+  function renderFunnel(pipeline) {
+    const svg = document.getElementById('funnelChart');
+    const W = 320;
+    const n = pipeline.length;
+    const bandH = 44, gap = 30, marginTop = 10;
+    const H = marginTop + n * bandH + (n - 1) * gap + 40;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const maxCount = Math.max(...pipeline.map(p => p.count)) || 1;
+    const maxWidth = W - 40;
+    const cx = W / 2;
+    const LIGHT = [201, 217, 251];
+    const DARK = [22, 48, 140];
+    let content = '';
+    pipeline.forEach((p, i) => {
+      const topCount = p.count;
+      const bottomCount = i + 1 < n ? pipeline[i + 1].count : p.count;
+      const topW = (topCount / maxCount) * maxWidth;
+      const botW = (bottomCount / maxCount) * maxWidth;
+      const yTop = marginTop + i * (bandH + gap);
+      const yBottom = yTop + bandH;
+      const t = n > 1 ? i / (n - 1) : 1;
+      const fillColor = lerpColor(LIGHT, DARK, t);
+      const textColor = t < 0.55 ? '#10151F' : '#FFFFFF';
+      const x1 = cx - topW / 2, x2 = cx + topW / 2;
+      const x3 = cx + botW / 2, x4 = cx - botW / 2;
+      content += `
+        <polygon points="${x1},${yTop} ${x2},${yTop} ${x3},${yBottom} ${x4},${yBottom}" fill="${fillColor}" />
+        <text x="${cx}" y="${yTop + bandH / 2 - 4}" text-anchor="middle" class="funnel-label" style="fill:${textColor}">${escapeHtml(p.stage)}</text>
+        <text x="${cx}" y="${yTop + bandH / 2 + 14}" text-anchor="middle" class="funnel-count" style="fill:${textColor}">${fmt(p.count)}건</text>
+      `;
+      if (i + 1 < n) {
+        const rate = topCount > 0 ? (bottomCount / topCount) * 100 : 0;
+        content += `<text x="${cx}" y="${yBottom + gap / 2 + 4}" text-anchor="middle" class="funnel-rate">▼ ${rate.toFixed(1)}%</text>`;
+      }
+    });
+    const finalRate = pipeline[0].count > 0 ? (pipeline[n - 1].count / pipeline[0].count) * 100 : 0;
+    const lastY = marginTop + n * bandH + (n - 1) * gap;
+    content += `<text x="${cx}" y="${lastY + 26}" text-anchor="middle" class="funnel-final">최종 전환율 ${finalRate.toFixed(1)}%</text>`;
+    svg.innerHTML = content;
+  }
+  function renderRank(containerId, items, mode) {
+    const el = document.getElementById(containerId);
+    if (!items.length) {
+      el.innerHTML = '<p class="empty">데이터가 없습니다.</p>';
+      return;
+    }
+    if (mode === 'gainer') {
+      const maxRate = Math.max(...items.map(i => Math.abs(i.rate || 0))) || 1;
+      el.innerHTML = items.map((item, idx) => {
+        const width = (Math.abs(item.rate || 0) / maxRate) * 100;
+        const sign = (item.rate || 0) >= 0 ? '▲ +' : '▼ ';
+        return `
+          <div class="rank-row">
+            <span class="rank-no">${idx + 1}</span>
+            <div class="rank-body">
+              <div class="rank-top">
+                <span class="rank-name">${escapeHtml(item.name)}</span>
+                <span class="rank-amount" style="color:#0ca30c">${sign}${Math.abs(item.rate || 0).toFixed(1)}%</span>
+              </div>
+              <div class="rank-track"><div class="rank-fill" style="width:${width}%;background:#0ca30c"></div></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      return;
+    }
+    const maxAmount = Math.max(...items.map(i => i.amount)) || 1;
+    el.innerHTML = items.map((item, idx) => {
+      const width = (item.amount / maxAmount) * 100;
+      return `
+        <div class="rank-row">
+          <span class="rank-no">${idx + 1}</span>
+          <div class="rank-body">
+            <div class="rank-top">
+              <span class="rank-name">${escapeHtml(item.name)}</span>
+              <span class="rank-amount">${fmt(item.amount)}만원</span>
+            </div>
+            <div class="rank-track"><div class="rank-fill" style="width:${width}%"></div></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+  document.getElementById('refreshBtn').addEventListener('click', loadDashboard);
+  loadDashboard();
 </script>
 </body>
 </html>

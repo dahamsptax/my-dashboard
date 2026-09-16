@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>영업 대시보드 · 거래처등록</title>
+<title>영업 대시보드 · 매출자료 업로드</title>
 <link rel="stylesheet" as="style" crossorigin
   href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
 <style>
@@ -31,9 +31,6 @@
   .topnav { margin-bottom: 16px; display: flex; gap: 14px; }
   .topnav a { color: var(--color-text-muted); text-decoration: none; font-size: 13px; font-weight: 600; }
   .topnav a:hover { color: var(--color-text); }
-  .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
-  .tabs a { font-size: 13px; font-weight: 700; text-decoration: none; padding: 8px 16px; border-radius: 999px; color: var(--color-text-muted); background: #f2f3f5; }
-  .tabs a.active { color: #fff; background: var(--color-primary); }
   h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 4px; }
   .subtitle { font-size: 13px; color: var(--color-text-muted); margin: 0 0 24px; line-height: 1.6; }
   .card {
@@ -42,8 +39,9 @@
   }
   .card h2 { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
   .card p.hint { font-size: 12.5px; color: var(--color-text-muted); margin: 0 0 16px; line-height: 1.6; }
+  .drop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .dropzone {
-    border: 2px dashed var(--color-border); border-radius: 12px; padding: 30px 16px;
+    border: 2px dashed var(--color-border); border-radius: 12px; padding: 26px 16px;
     text-align: center; cursor: pointer; transition: border-color .15s, background .15s; position: relative;
   }
   .dropzone:hover, .dropzone.drag { border-color: var(--color-primary); background: var(--color-primary-soft); }
@@ -60,6 +58,12 @@
   table.preview { width: 100%; border-collapse: collapse; font-size: 13px; }
   table.preview th, table.preview td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--color-border); }
   table.preview th { color: var(--color-text-muted); font-weight: 600; font-size: 12px; }
+  table.preview td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 18px; }
+  .kpi-box { border: 1px solid var(--color-border); border-radius: 10px; padding: 12px 14px; }
+  .kpi-box .l { font-size: 11.5px; color: var(--color-text-muted); margin-bottom: 6px; }
+  .kpi-box .v { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .kpi-box .v.small { font-size: 14px; }
   .btn {
     border: none; background: var(--color-primary); color: #fff; font-weight: 700; font-size: 13.5px;
     padding: 11px 22px; border-radius: 999px; cursor: pointer; font-family: inherit;
@@ -69,63 +73,65 @@
   .btn.secondary { background: #fff; color: var(--color-primary); border: 1px solid var(--color-border); }
   .section-title { font-size: 13px; font-weight: 700; margin: 18px 0 8px; }
   .actions { display: flex; gap: 10px; margin-top: 18px; }
-  .stat-row { display: flex; gap: 10px; margin-bottom: 4px; }
-  .stat-box { border: 1px solid var(--color-border); border-radius: 10px; padding: 12px 14px; flex: 1; }
-  .stat-box .l { font-size: 11.5px; color: var(--color-text-muted); margin-bottom: 6px; }
-  .stat-box .v { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .funnel-mini { display: flex; gap: 8px; flex-wrap: wrap; }
+  .funnel-mini span { font-size: 12.5px; background: var(--color-primary-soft); color: var(--color-primary-dark); padding: 5px 10px; border-radius: 999px; font-weight: 600; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .tabs a { font-size: 13px; font-weight: 700; text-decoration: none; padding: 8px 16px; border-radius: 999px; color: var(--color-text-muted); background: #f2f3f5; }
+  .tabs a.active { color: #fff; background: var(--color-primary); }
+  @media (max-width: 560px) {
+    .drop-grid, .kpi-row { grid-template-columns: 1fr 1fr; }
+  }
 </style>
 </head>
 <body>
 <div class="page">
   <div class="topnav"><a href="/">← 대시보드 허브</a><a href="/sales/">← 영업 대시보드</a></div>
   <div class="tabs">
-    <a href="/sales/upload/">1. 매출자료 업로드</a>
-    <a class="active" href="/sales/upload/customers/">2. 거래처등록</a>
+    <a class="active" href="/sales/upload/">1. 매출자료 업로드</a>
+    <a href="/sales/upload/customers/">2. 거래처등록</a>
   </div>
-  <h1>거래처등록</h1>
+  <h1>매출자료 업로드</h1>
   <p class="subtitle">
-    전체 거래처 목록(마스터)을 등록해두면, 영업 대시보드의 "①전체 거래처"와 "③객단가"가 최근 업로드한
-    매출 파일 기준 근사치 대신 실제 등록 거래처 수를 기준으로 계산됩니다. 여기서 올리는 데이터는
-    매출액과 무관하게 "거래처명 + 사업자번호"만 저장하며, 기존에 등록된 거래처는 지우지 않고
-    새 거래처만 추가/갱신합니다 — 몇 번을 나눠 올리셔도 안전합니다.
+    회계 프로그램에서 뽑은 "매출 부가세 집계표" CSV 2개(이번 달, 전달)를 올리면 거래처별 매출을 대조해서
+    8개 지표를 자동 계산합니다. 확인 후 저장을 눌러야 대시보드에 반영돼요.
   </p>
 
   <div class="card">
-    <h2>현재 등록된 거래처</h2>
-    <div class="stat-row">
-      <div class="stat-box"><div class="l">등록된 거래처 수</div><div class="v" id="currentCount">불러오는 중...</div></div>
-    </div>
-  </div>
-
-  <div class="card">
     <h2>1. 파일 선택</h2>
-    <p class="hint">회계 프로그램/ERP에서 뽑은 "전체 거래처 목록" CSV 파일을 올려주세요. "거래처명"(또는 상호,
-      업체명)과 "사업자번호" 열이 있으면 자동으로 인식합니다. 헤더 이름이 없는 파일이면 첫 번째 열을
-      거래처명, 두 번째 열을 사업자번호로 간주합니다. 형식이 달라 인식이 안 되면 파일을 채팅으로 보내주세요,
-      맞춰서 고쳐드릴게요.</p>
-    <div class="dropzone" id="dropzone">
-      <div class="role">거래처 목록 파일 (필수)</div>
-      <div class="big" id="dzLabel">클릭하거나 파일을 끌어다 놓으세요</div>
-      <div class="small">CSV (CP949/EUC-KR 인코딩 자동 인식)</div>
-      <input type="file" id="fileInput" accept=".csv" />
+    <p class="hint"><b>이번 달 파일은 필수</b>이고, 전달 파일은 <b>선택</b>입니다 — 전달 파일을 넣지 않으면 이전에 저장해둔 전달 거래처별 매출을 자동으로 불러와 비교합니다 (처음 몇 달은 넣어주시고, 이후부터는 이번 달 파일 1개만 올리시면 됩니다). "매출 부가세 집계표"(L열 "금액(전)" 기준) 또는 "분기별 매출 집계표"(I열, "전표 입력분" 금액 기준) 형식을 자동으로 인식합니다 — 어느 쪽이든 거래처별 "전표 입력분" 매출액으로 집계됩니다.</p>
+    <div class="drop-grid">
+      <div class="dropzone" id="dropzoneA" data-slot="A">
+        <div class="role">이번 달 파일 (필수)</div>
+        <div class="big">클릭하거나 끌어다 놓기</div>
+        <div class="small" id="labelA">.csv</div>
+      </div>
+      <div class="dropzone" id="dropzoneB" data-slot="B">
+        <div class="role">전달 파일 (선택)</div>
+        <div class="big">클릭하거나 끌어다 놓기</div>
+        <div class="small" id="labelB">없으면 저장된 데이터 자동 사용</div>
+      </div>
     </div>
-    <div class="status" id="statusEl"></div>
+    <input type="file" id="fileInputA" accept=".csv" />
+    <input type="file" id="fileInputB" accept=".csv" />
+    <div class="status" id="status"></div>
   </div>
 
   <div class="card" id="previewCard" style="display:none;">
-    <h2>2. 확인</h2>
+    <h2>2. 계산 결과 미리보기</h2>
     <p class="hint" id="previewMeta"></p>
-    <div class="stat-row">
-      <div class="stat-box"><div class="l">파일에서 읽은 거래처 수</div><div class="v" id="parsedCount">-</div></div>
-      <div class="stat-box"><div class="l">이 중 신규 거래처</div><div class="v" id="newCount">-</div></div>
-    </div>
-    <div class="section-title">미리보기 (상위 10개)</div>
-    <table class="preview">
-      <thead><tr><th>거래처명</th><th>사업자번호</th></tr></thead>
-      <tbody id="rowPreview"></tbody>
-    </table>
+    <div class="kpi-row" id="kpiPreview"></div>
+
+    <div class="section-title">거래처 활성화 퍼널 (3단계)</div>
+    <div class="funnel-mini" id="funnelPreview"></div>
+
+    <div class="section-title">매출증감율 상위 거래처 (Top 5)</div>
+    <table class="preview"><thead><tr><th>거래처</th><th class="num">전달</th><th class="num">이번달</th><th class="num">증감율</th></tr></thead><tbody id="gainerPreview"></tbody></table>
+
+    <div class="section-title">매출액 상위 거래처 (Top 5)</div>
+    <table class="preview"><thead><tr><th>거래처</th><th class="num">이번달 매출액</th></tr></thead><tbody id="sellerPreview"></tbody></table>
+
     <div class="actions">
-      <button class="btn" id="saveBtn">거래처 마스터에 저장</button>
+      <button class="btn" id="saveBtn">Supabase에 저장</button>
       <button class="btn secondary" id="cancelBtn">취소</button>
     </div>
     <div class="status" id="saveStatus"></div>
@@ -140,136 +146,283 @@
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeXB6c2FtbXZydGhmcWloa3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzOTk1NzcsImV4cCI6MjEwMTk3NTU3N30.oUcfA-F0S9QHgpK56qvB0-aczx7AMPXDCtkVtNrJ3QM"
   );
 
-  const statusEl = document.getElementById('statusEl');
+  const fmt = (n) => Math.round(n || 0).toLocaleString('ko-KR');
+  const statusEl = document.getElementById('status');
   const previewCard = document.getElementById('previewCard');
+  const slots = { A: null, B: null }; // { fileName, month, year, rows: Map(biz -> {name, amount}), sum }
+  let computed = null;
+
+  ['A', 'B'].forEach((slot) => {
+    const zone = document.getElementById('dropzone' + slot);
+    const input = document.getElementById('fileInput' + slot);
+    zone.addEventListener('click', () => input.click());
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+    zone.addEventListener('drop', (e) => {
+      e.preventDefault(); zone.classList.remove('drag');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0], slot);
+    });
+    input.addEventListener('change', (e) => { if (e.target.files.length) handleFile(e.target.files[0], slot); });
+  });
+
   function showStatus(el, msg, kind) {
     el.textContent = msg;
     el.className = 'status show ' + kind;
   }
 
-  async function refreshCurrentCount() {
-    const { count, error } = await db.from('sales_customers').select('id', { count: 'exact', head: true });
-    document.getElementById('currentCount').textContent = error ? '조회 실패' : (count || 0).toLocaleString() + '개';
-  }
-  refreshCurrentCount();
-
-  const dropzone = document.getElementById('dropzone');
-  const fileInput = document.getElementById('fileInput');
-  let parsedRows = null; // Map(biz -> name)
-
-  dropzone.addEventListener('click', () => fileInput.click());
-  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
-  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
-  dropzone.addEventListener('drop', (e) => {
-    e.preventDefault(); dropzone.classList.remove('drag');
-    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-  });
-  fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFile(e.target.files[0]); });
-
-  function handleFile(file) {
+  function handleFile(file, slot) {
+    showStatus(statusEl, `"${file.name}" 읽는 중...`, 'info');
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const text = new TextDecoder('euc-kr').decode(new Uint8Array(e.target.result));
-        const rows = parseCustomerList(text);
-        parsedRows = rows;
-        dropzone.classList.add('filled');
-        document.getElementById('dzLabel').textContent = file.name + ` (거래처 ${rows.size.toLocaleString()}개 인식)`;
-        showStatus(statusEl, '파싱 완료 — 아래에서 확인 후 저장해주세요.', 'ok');
-        showPreview(rows);
+        const parsed = parseVatSummary(text, file.name);
+        slots[slot] = parsed;
+        const zone = document.getElementById('dropzone' + slot);
+        const label = document.getElementById('label' + slot);
+        zone.classList.add('filled');
+        label.textContent = `${parsed.monthLabel} (${parsed.year}) · ${parsed.rows.size.toLocaleString()}개 거래처 · ${file.name}`;
+        showStatus(statusEl, `"${file.name}" → ${parsed.monthLabel} 매출자료로 인식했습니다.`, 'ok');
+        attemptCompute();
       } catch (err) {
         console.error(err);
-        showStatus(statusEl, '파일을 읽는 중 오류: ' + (err.message || String(err)), 'error');
-        previewCard.style.display = 'none';
+        showStatus(statusEl, `"${file.name}" 처리 중 오류: ` + (err.message || String(err)), 'error');
       }
     };
+    reader.onerror = () => showStatus(statusEl, '파일을 읽지 못했습니다.', 'error');
     reader.readAsArrayBuffer(file);
   }
 
-  // 거래처 목록 CSV 파싱: 헤더에서 "거래처/상호/업체명" + "사업자번호" 열을 찾고,
-  // 헤더가 없으면 1열=거래처명, 2열=사업자번호로 간주한다.
-  function parseCustomerList(text) {
-    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length);
-    if (!lines.length) throw new Error('빈 파일입니다.');
+  // ---- parse one "매출 부가세 집계표" CSV (cp949/euc-kr encoded) ----
+  function parseVatSummary(text, fileName) {
+    const lines = text.split(/\r?\n/);
+    // 기간 추출: 첫 줄 어딘가의 YYYY.MM.DD 형태에서 월을 읽는다
+    const dateMatch = text.match(/(\d{4})\.(\d{2})\.(\d{2})/);
+    if (!dateMatch) throw new Error('첫 줄에서 집계 기간(YYYY.MM.DD)을 찾지 못했습니다.');
+    const year = dateMatch[1];
+    const monthNum = parseInt(dateMatch[2], 10);
+    const monthLabel = `${monthNum}월`;
 
-    const nameKeys = ['거래처명', '거래처', '상호', '업체명', '상호명'];
-    const bizKeys = ['사업자번호', '사업자등록번호', '사업자 번호'];
+    // 이 회사에서 받는 매출 집계표는 두 가지 형식이 섞여 있어 둘 다 지원한다.
+    // 형식 A: "매출 부가세 집계표" — "거래처/사업자번호" 이름표가 붙은 헤더 행이 있고,
+    //         매출액은 "금액(전)" 열(전표 입력분, 보통 L열)에 있다.
+    // 형식 B: "분기별 매출 집계표" — 이름표 붙은 헤더 행이 따로 없고, 대신 "발행분 / 전표 입력분"
+    //         그룹 라벨 행만 있으며 거래처 데이터가 곧바로 시작한다. 매출액은 "전표 입력분" 그룹의
+    //         첫 열(금액, 보통 I열)에 있다.
+    const bizNoRe = /^\d{3}-\d{2}-\d{5}$/; // 사업자번호 형식 000-00-00000
 
-    let headerIdx = -1, idxName = -1, idxBiz = -1;
-    for (let i = 0; i < Math.min(lines.length, 20); i++) {
+    let headerIdx = -1, header = null;
+    for (let i = 0; i < lines.length; i++) {
       const cells = lines[i].split(',').map(c => c.trim());
-      const nMatch = cells.findIndex(c => nameKeys.includes(c));
-      const bMatch = cells.findIndex(c => bizKeys.includes(c));
-      if (nMatch !== -1 && bMatch !== -1) { headerIdx = i; idxName = nMatch; idxBiz = bMatch; break; }
+      if (cells[0] === '거래처' && cells.includes('사업자번호')) { headerIdx = i; header = cells; break; }
     }
 
-    let dataStart;
-    if (headerIdx !== -1) {
-      dataStart = headerIdx + 1;
+    let idxName = 0, idxBiz = 1, idxAmount, dataStartIdx;
+
+    if (header) {
+      // 형식 A
+      idxName = header.indexOf('거래처');
+      idxBiz = header.indexOf('사업자번호');
+      idxAmount = header.indexOf('금액(전)');
+      if (idxAmount === -1) throw new Error('"금액(전)" 열(L열)을 찾지 못했습니다.');
+      dataStartIdx = headerIdx + 1;
     } else {
-      // 헤더가 없는 경우: 1열 거래처명, 2열 사업자번호로 간주
-      idxName = 0; idxBiz = 1;
-      dataStart = 0;
+      // 형식 B: "전표 입력분" 그룹 라벨이 있는 열을 매출액 열로 사용 (보통 I열)
+      let groupIdx = -1;
+      for (let i = 0; i < Math.min(lines.length, 10); i++) {
+        const cells = lines[i].split(',').map(c => c.trim());
+        const idx = cells.indexOf('전표 입력분');
+        if (idx !== -1) { groupIdx = idx; break; }
+      }
+      idxAmount = groupIdx !== -1 ? groupIdx : 8; // 못 찾으면 I열(인덱스 8)로 기본 처리
+      // 데이터 시작 행: 두 번째 칸이 사업자번호 형식(000-00-00000)인 첫 줄
+      dataStartIdx = -1;
+      for (let i = 0; i < lines.length; i++) {
+        const cells = lines[i].split(',').map(c => c.trim());
+        if (bizNoRe.test(cells[1] || '')) { dataStartIdx = i; break; }
+      }
+      if (dataStartIdx === -1) throw new Error('데이터 시작 행(거래처/사업자번호)을 찾지 못했습니다.');
     }
 
-    const rows = new Map(); // biz -> name
-    for (let i = dataStart; i < lines.length; i++) {
+    const rows = new Map(); // biz -> { name, amount }
+    for (let i = dataStartIdx; i < lines.length; i++) {
       const cells = lines[i].split(',').map(c => c.trim());
       const name = cells[idxName];
-      if (!name || name === '총계' || name === '합계') continue;
-      const biz = (cells[idxBiz] || '').trim() || name; // 사업자번호 없으면 이름으로 대체
-      rows.set(biz, name);
+      if (!name || name === '총계') continue;
+      const biz = cells[idxBiz] || name; // 사업자번호가 없으면 이름으로 대체
+      const amount = Number((cells[idxAmount] || '').replace(/[^\d-]/g, '')) || 0;
+      if (rows.has(biz)) {
+        rows.get(biz).amount += amount; // 같은 사업자번호가 여러 줄이면 합산
+      } else {
+        rows.set(biz, { name, amount });
+      }
     }
-    if (!rows.size) throw new Error('거래처 데이터를 찾지 못했습니다. 헤더 이름이나 열 순서를 확인해주세요.');
-    return rows;
+    if (!rows.size) throw new Error('데이터 행을 찾지 못했습니다.');
+    return { fileName, year, monthNum, monthLabel, rows };
   }
 
-  async function showPreview(rows) {
-    document.getElementById('parsedCount').textContent = rows.size.toLocaleString() + '개';
-    document.getElementById('previewMeta').textContent =
-      '저장을 누르면 기존에 등록된 거래처는 그대로 두고, 새 사업자번호만 추가하거나 이름이 바뀐 거래처만 갱신합니다.';
+  // 이번 달 파일(A)은 필수, 전달 파일(B)은 선택 — 없으면 Supabase에 저장된 직전 달
+  // 거래처별 매출(sales_customer_monthly)을 자동으로 불러와 비교합니다.
+  async function attemptCompute() {
+    const curr = slots.A;
+    if (!curr) return;
+    let prev = slots.B;
+    let hasPrevData = true;
+    let prevSource = '업로드한 전달 파일';
 
-    // 신규 거래처 수 계산 (기존 마스터와 대조)
-    try {
-      const bizList = [...rows.keys()];
-      const { data: existing, error } = await db.from('sales_customers').select('biz').in('biz', bizList);
-      const existingSet = new Set((existing || []).map(r => r.biz));
-      const newCount = bizList.filter(b => !existingSet.has(b)).length;
-      document.getElementById('newCount').textContent = error ? '-' : newCount.toLocaleString() + '개';
-    } catch (err) {
-      document.getElementById('newCount').textContent = '-';
+    if (!prev) {
+      showStatus(statusEl, '전달 파일이 없어 저장된 데이터에서 전달 매출을 찾는 중...', 'info');
+      const prevMonthNum = curr.monthNum - 1;
+      if (prevMonthNum >= 1) {
+        try {
+          const { data, error } = await db.from('sales_customer_monthly')
+            .select('biz,name,amount')
+            .eq('year', Number(curr.year))
+            .eq('month_num', prevMonthNum);
+          if (error) throw error;
+          if (data && data.length) {
+            const rowsMap = new Map();
+            data.forEach(r => rowsMap.set(r.biz, { name: r.name, amount: r.amount }));
+            prev = { year: curr.year, monthNum: prevMonthNum, monthLabel: `${prevMonthNum}월`, rows: rowsMap };
+            prevSource = `저장된 ${prevMonthNum}월 데이터 (${data.length.toLocaleString()}개 거래처)`;
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+      if (!prev) {
+        hasPrevData = false;
+        prev = { year: curr.year, monthNum: prevMonthNum, monthLabel: prevMonthNum >= 1 ? `${prevMonthNum}월` : '(없음)', rows: new Map() };
+        prevSource = '없음 — 이번 달이 첫 등록 달로 처리됩니다';
+      }
     }
 
-    const preview = [...rows.entries()].slice(0, 10)
-      .map(([biz, name]) => `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(biz)}</td></tr>`).join('');
-    document.getElementById('rowPreview').innerHTML = preview;
-    previewCard.style.display = 'block';
+    try {
+      computed = computeMetrics(prev, curr, hasPrevData);
+      computed.prevSource = prevSource;
+
+      // 거래처 마스터(sales_customers)에 등록된 거래처가 있으면 "①전체 거래처"를
+      // 최근 2개월 실거래 기준 근사치 대신 실제 등록 거래처 수로 바꿔치기합니다.
+      try {
+        const { count: masterCount, error: masterErr } = await db
+          .from('sales_customers').select('id', { count: 'exact', head: true });
+        if (!masterErr && masterCount && masterCount > 0) {
+          computed.totalCustomers = masterCount;
+          computed.avgDeal = masterCount > 0 ? computed.currSum / masterCount : 0;
+          computed.funnel[0] = { stage: '전체 거래처', count: masterCount };
+          computed.usingMasterCount = true;
+        }
+      } catch (err) {
+        console.error('거래처 마스터 조회 실패', err);
+      }
+
+      renderPreview(computed);
+      previewCard.style.display = 'block';
+      showStatus(statusEl, `계산 완료 (전달 데이터 출처: ${prevSource})`, hasPrevData ? 'ok' : 'error');
+    } catch (err) {
+      console.error(err);
+      showStatus(statusEl, '계산 중 오류: ' + (err.message || String(err)), 'error');
+    }
+  }
+
+  // ---- core calculation: compare curr vs prev by 사업자번호 ----
+  function computeMetrics(prev, curr, hasPrevData) {
+    const allBiz = new Set([...prev.rows.keys(), ...curr.rows.keys()]);
+    let currSum = 0, prevSum = 0;
+    let activeCount = 0, growCount = 0, newCount = 0;
+    const numericRates = [];
+    const parsed = [];
+
+    allBiz.forEach((biz) => {
+      const p = prev.rows.get(biz);
+      const c = curr.rows.get(biz);
+      const prevAmt = p ? p.amount : 0;
+      const currAmt = c ? c.amount : 0;
+      const name = (c || p).name;
+      currSum += currAmt; prevSum += prevAmt;
+      if (currAmt > 0) activeCount++;
+      let rate = null, isNew = false;
+      if (prevAmt > 0) {
+        rate = (currAmt - prevAmt) / prevAmt;
+        numericRates.push(rate);
+        if (rate > 0) growCount++;
+      } else if (currAmt > 0) {
+        isNew = true; newCount++;
+      }
+      parsed.push({ name, prev: prevAmt, curr: currAmt, rate: rate != null ? rate : (isNew ? '신규' : null) });
+    });
+
+    const totalCustomers = allBiz.size;
+    const target = hasPrevData ? prevSum * 1.05 : null;
+    const avgRate = hasPrevData && numericRates.length ? (numericRates.reduce((a, b) => a + b, 0) / numericRates.length) * 100 : null;
+
+    // 3단계 퍼널: 전체 거래처 → 이번달 매출발생 → 전월대비 매출증가(신규 포함)
+    // 전달 데이터가 전혀 없는 첫 등록 달은 "매출증가"를 계산할 기준이 없어 0으로 둡니다.
+    const funnel = [
+      { stage: '전체 거래처', count: totalCustomers },
+      { stage: '이번달 매출발생', count: activeCount },
+      { stage: '전월대비 매출증가', count: hasPrevData ? growCount + newCount : 0 },
+    ];
+
+    const gainers = hasPrevData ? parsed
+      .filter(r => typeof r.rate === 'number' && r.prev >= 500000)
+      .sort((a, b) => b.rate - a.rate)
+      .slice(0, 5)
+      .map(r => ({ name: r.name, prev: r.prev, curr: r.curr, rate: r.rate * 100 })) : [];
+
+    const sellers = [...parsed].sort((a, b) => b.curr - a.curr).slice(0, 5)
+      .map(r => ({ name: r.name, amount: r.curr }));
+
+    return {
+      prevMonthLabel: prev.monthLabel, currMonthLabel: curr.monthLabel,
+      currSum, prevSum, target, totalCustomers, avgRate, funnel, gainers, sellers, hasPrevData,
+      avgDeal: totalCustomers > 0 ? currSum / totalCustomers : 0,
+      currRows: curr.rows, prevRows: hasPrevData ? prev.rows : null,
+      currYear: curr.year, currMonthNum: curr.monthNum,
+      prevYear: prev.year, prevMonthNum: prev.monthNum,
+    };
+  }
+
+  function renderPreview(r) {
+    const achievement = r.target > 0 ? (r.currSum / r.target) * 100 : null;
+    document.getElementById('previewMeta').textContent = r.hasPrevData
+      ? `${r.prevMonthLabel} → ${r.currMonthLabel} 대조 결과입니다 (전달 데이터: ${r.prevSource}). 저장 시 이번 달(${r.currMonthLabel}) 기준으로 반영됩니다.`
+      : `전달 데이터가 없어 ${r.currMonthLabel}을(를) 첫 등록 달로 저장합니다 — 목표/평균증감율/상위거래처는 다음 달부터 계산됩니다.`;
+    document.getElementById('kpiPreview').innerHTML = `
+      <div class="kpi-box"><div class="l">① 이번 달 매출</div><div class="v">${fmt(r.currSum/10000)}만원</div></div>
+      <div class="kpi-box"><div class="l">② 목표 (전달×105%)</div><div class="v">${r.target != null ? fmt(r.target/10000)+'만원' : '-'}</div></div>
+      <div class="kpi-box"><div class="l">③ 객단가</div><div class="v small">${fmt(r.avgDeal/10000)}만원</div></div>
+      <div class="kpi-box"><div class="l">④ 평균증감율</div><div class="v small" style="color:${r.avgRate==null?'inherit':(r.avgRate>=0?'var(--good)':'var(--critical)')}">${r.avgRate==null ? '-' : (r.avgRate>=0?'+':'')+r.avgRate.toFixed(1)+'%'}</div></div>
+    `;
+    document.getElementById('funnelPreview').innerHTML = r.funnel.map(f => `<span>${f.stage}: ${f.count.toLocaleString()}건</span>`).join('') +
+      (achievement != null ? `<span>목표 달성률: ${achievement.toFixed(1)}%</span>` : '') +
+      (r.usingMasterCount
+        ? `<span style="background:#e4f4e1;color:var(--good)">등록 거래처 마스터 기준</span>`
+        : `<span style="background:#fff3cd;color:#8a6300">거래처 마스터 미등록 — 최근 2개월 실거래 근사치</span>`);
+    document.getElementById('gainerPreview').innerHTML = r.gainers.map(g => `
+      <tr><td>${escapeHtml(g.name)}</td><td class="num">${fmt(g.prev)}원</td><td class="num">${fmt(g.curr)}원</td><td class="num" style="color:var(--good)">+${g.rate.toFixed(1)}%</td></tr>
+    `).join('') || '<tr><td colspan="4">조건(전달 매출 50만원 이상)을 만족하는 거래처가 없습니다.</td></tr>';
+    document.getElementById('sellerPreview').innerHTML = r.sellers.map(s => `
+      <tr><td>${escapeHtml(s.name)}</td><td class="num">${fmt(s.amount/10000)}만원</td></tr>
+    `).join('');
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   document.getElementById('cancelBtn').addEventListener('click', () => {
-    parsedRows = null;
-    dropzone.classList.remove('filled');
-    document.getElementById('dzLabel').textContent = '클릭하거나 파일을 끌어다 놓으세요';
-    fileInput.value = '';
+    computed = null;
     previewCard.style.display = 'none';
-    statusEl.className = 'status';
   });
 
   document.getElementById('saveBtn').addEventListener('click', async () => {
-    if (!parsedRows) return;
+    if (!computed) return;
     const saveStatus = document.getElementById('saveStatus');
     showStatus(saveStatus, 'Supabase에 저장하는 중...', 'info');
     try {
-      const payload = [...parsedRows.entries()].map(([biz, name]) => ({ biz, name, updated_at: new Date().toISOString() }));
-      // 500개씩 나눠서 upsert (한 번에 너무 많은 행을 보내면 실패할 수 있어 배치 처리)
-      const batchSize = 500;
-      for (let i = 0; i < payload.length; i += batchSize) {
-        const batch = payload.slice(i, i + batchSize);
-        const { error } = await db.from('sales_customers').upsert(batch, { onConflict: 'biz' });
-        if (error) throw error;
-      }
-      showStatus(saveStatus, `저장 완료! ${payload.length.toLocaleString()}개 거래처를 반영했습니다. 영업 대시보드에서 다음 매출 업로드부터 반영됩니다.`, 'ok');
-      refreshCurrentCount();
+      await saveToSupabase(computed);
+      showStatus(saveStatus, '저장 완료! 영업 대시보드에서 새로고침하면 바로 반영됩니다.', 'ok');
     } catch (err) {
       console.error(err);
       showStatus(saveStatus, '저장 실패: ' + (err.message || String(err)) +
@@ -277,8 +430,62 @@
     }
   });
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function mapToCustomerRows(map, year, monthNum) {
+    const out = [];
+    map.forEach((v, biz) => out.push({ biz, name: v.name, year: Number(year), month_num: monthNum, amount: v.amount }));
+    return out;
+  }
+
+  async function saveToSupabase(r) {
+    // 0) 거래처×월 히스토리 저장 — 다음 달 업로드 때 "전달 파일 없이" 비교할 수 있게 함
+    const currCustomerRows = mapToCustomerRows(r.currRows, r.currYear, r.currMonthNum);
+    const { error: custCurrErr } = await db.from('sales_customer_monthly')
+      .upsert(currCustomerRows, { onConflict: 'biz,year,month_num' });
+    if (custCurrErr) throw custCurrErr;
+    if (r.hasPrevData && r.prevRows) {
+      const prevCustomerRows = mapToCustomerRows(r.prevRows, r.prevYear, r.prevMonthNum);
+      const { error: custPrevErr } = await db.from('sales_customer_monthly')
+        .upsert(prevCustomerRows, { onConflict: 'biz,year,month_num' });
+      if (custPrevErr) throw custPrevErr;
+    }
+
+    // 1) sales_monthly: 이번 달 행 갱신 또는 추가 (전체 누적 — 오래된 달을 지우지 않습니다)
+    // sort_order는 업로드한 "순서"가 아니라 실제 달 숫자(currMonthNum)로 고정합니다 —
+    // 1월~8월을 어떤 순서로 올리시든 그래프는 항상 달 순서(1,2,3...)대로 나오게 하기 위해서입니다.
+    const { data: existingMonthly, error: monthlyReadErr } = await db.from('sales_monthly').select('*').order('sort_order', { ascending: true });
+    if (monthlyReadErr) throw monthlyReadErr;
+    const monthRow = {
+      month: r.currMonthLabel,
+      sort_order: r.currMonthNum,
+      revenue: Math.round(r.currSum / 10000),
+      target: r.target != null ? Math.round(r.target / 10000) : null,
+      total_customers: r.totalCustomers,
+      avg_growth_rate: r.avgRate != null ? Math.round(r.avgRate * 10) / 10 : null,
+    };
+    const existing = existingMonthly.find(m => m.month === r.currMonthLabel);
+    if (existing) {
+      const { error } = await db.from('sales_monthly').update(monthRow).eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await db.from('sales_monthly').insert(monthRow);
+      if (error) throw error;
+    }
+
+    // 2) sales_pipeline / sales_rank: 이번 달 기준 스냅샷으로 교체
+    const { error: delPipeErr } = await db.from('sales_pipeline').delete().gte('id', 0);
+    if (delPipeErr) throw delPipeErr;
+    const pipelineRows = r.funnel.map((f, i) => ({ sort_order: i + 1, stage: f.stage, count: f.count }));
+    const { error: insPipeErr } = await db.from('sales_pipeline').insert(pipelineRows);
+    if (insPipeErr) throw insPipeErr;
+
+    const { error: delRankErr } = await db.from('sales_rank').delete().gte('id', 0);
+    if (delRankErr) throw delRankErr;
+    const gainerRows = r.gainers.map(g => ({ kind: 'gainer', name: g.name, amount: Math.round(g.curr / 10000), rate: Math.round(g.rate * 10) / 10 }));
+    const sellerRows = r.sellers.map(s => ({ kind: 'seller', name: s.name, amount: Math.round(s.amount / 10000), rate: null }));
+    if (gainerRows.length || sellerRows.length) {
+      const { error: insRankErr } = await db.from('sales_rank').insert([...gainerRows, ...sellerRows]);
+      if (insRankErr) throw insRankErr;
+    }
   }
 </script>
 </body>

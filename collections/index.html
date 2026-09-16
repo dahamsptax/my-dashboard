@@ -226,13 +226,16 @@
     [시트1 "사건"] 채권자 | 사건번호 | 회사명 | 사업자등록번호 | 대표자명 | 금액 | 상태 | 신청일자 | 종료일자
     [시트2 "진행경과"] 사건번호 | 경과일자 | 상태 | 내용
 
-    - "사건번호"는 시트1과 시트2를 연결하는 값이라 전체에서 겹치지 않게 적어주세요.
+    - "사건번호"는 같은 파일 안에서만 겹치지 않으면 됩니다 (회사가 다르면 같은 번호를 써도 괜찮아요).
     - "상태"는 신청 / 진행중 / 종료 중 하나로 적어주세요.
+    - ★ 업로드하면, 그 파일에 들어있는 "채권자" 회사의 데이터만 새로 교체됩니다.
+      파일에 없는 다른 회사의 기존 데이터는 그대로 유지돼요.
+      (예: 대상국제교역 파일만 올리면 디아이화스너·픽스글로벌 데이터는 그대로 남아요)
     - 상단 "양식 다운로드" 버튼을 누르면 이 구조 그대로 예시 파일을 받을 수 있어요.
-    - 새로 업로드하면 이전 데이터는 전부 새 파일 내용으로 교체됩니다.
   */
 
   const STORAGE_KEY = 'collectionsData';
+  const COMPANY_ORDER = ['대상국제교역', '(주)디아이화스너', '픽스글로벌'];
 
   let allCases = [];
   let allProgress = [];
@@ -261,6 +264,16 @@
   function statusChip(status) {
     const cls = status === '신청' ? 'apply' : status === '진행중' ? 'progress' : 'done';
     return `<span class="status-chip ${cls}">${escapeHtml(status || '-')}</span>`;
+  }
+
+  function sortCompanies(list) {
+    return [...list].sort((a, b) => {
+      const ia = COMPANY_ORDER.indexOf(a), ib = COMPANY_ORDER.indexOf(b);
+      if (ia === -1 && ib === -1) return a.localeCompare(b);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
   }
 
   function excelDateToStr(v) {
@@ -316,8 +329,24 @@
         const caseRows = caseSheetName ? XLSX.utils.sheet_to_json(wb.Sheets[caseSheetName], { defval: '' }) : [];
         const progressRows = progressSheetName ? XLSX.utils.sheet_to_json(wb.Sheets[progressSheetName], { defval: '' }) : [];
 
-        allCases = caseRows.map(normalizeCase).filter(c => c.company_name);
-        allProgress = progressRows.map(normalizeProgress).filter(p => p.case_no);
+        const newCases = caseRows.map(normalizeCase).filter(c => c.company_name);
+        if (!newCases.length) throw new Error('사건 시트에서 유효한 행을 찾지 못했어요.');
+
+        // 사건번호 -> 채권자 매핑 (같은 파일 안의 진행경과를 회사에 연결하기 위함)
+        const caseNoToCompany = {};
+        newCases.forEach(c => { caseNoToCompany[c.case_no] = c.creditor_company; });
+
+        const newProgress = progressRows
+          .map(normalizeProgress)
+          .filter(p => p.case_no)
+          .map(p => ({ ...p, creditor_company: caseNoToCompany[p.case_no] || '' }));
+
+        // 이 파일에 들어있는 회사 목록
+        const companiesInUpload = [...new Set(newCases.map(c => c.creditor_company).filter(Boolean))];
+
+        // 해당 회사들의 기존 데이터만 제거하고, 새 데이터로 교체 (다른 회사는 그대로 유지)
+        allCases = allCases.filter(c => !companiesInUpload.includes(c.creditor_company)).concat(newCases);
+        allProgress = allProgress.filter(p => !companiesInUpload.includes(p.creditor_company)).concat(newProgress);
 
         const payload = { cases: allCases, progress: allProgress, updatedAt: new Date().toISOString() };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -418,7 +447,10 @@
       return;
     }
 
-    const companies = [...new Set(allCases.map(c => c.creditor_company))];
+    // 고정 3개 회사 + 데이터에만 있는 그 외 회사(있다면)를 함께 표시
+    const foundCompanies = [...new Set(allCases.map(c => c.creditor_company))];
+    const companies = sortCompanies([...new Set([...COMPANY_ORDER, ...foundCompanies])]);
+
     grid.innerHTML = companies.map(name => {
       const rows = allCases.filter(c => c.creditor_company === name);
       const total = rows.length;
@@ -476,7 +508,8 @@
 
   /* ---------- 사건 상세 ---------- */
   function showCaseDetail(caseNo) {
-    const c = allCases.find(x => x.case_no === caseNo);
+    // creditor_company까지 같이 확인해서, 회사가 달라도 사건번호가 같은 경우 섞이지 않게 함
+    const c = allCases.find(x => x.case_no === caseNo && x.creditor_company === currentCompany);
     if (!c) return;
 
     showView('viewCaseDetail');
@@ -494,7 +527,7 @@
     `;
 
     const rows = allProgress
-      .filter(p => p.case_no === caseNo)
+      .filter(p => p.case_no === caseNo && p.creditor_company === currentCompany)
       .sort((a, b) => (a.progress_date || '').localeCompare(b.progress_date || ''));
     renderTimeline(rows);
   }

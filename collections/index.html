@@ -83,7 +83,13 @@
   .company-grid .company-card:nth-child(1){animation-delay:.02s;}
   .company-grid .company-card:nth-child(2){animation-delay:.06s;}
   .company-grid .company-card:nth-child(3){animation-delay:.10s;}
-  .company-name{font-size:16px;font-weight:800;margin-bottom:16px;letter-spacing:-0.01em;}
+  .company-name{font-size:16px;font-weight:800;letter-spacing:-0.01em;}
+  .company-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;gap:8px;}
+  .icon-btn{
+    background:none;border:none;color:var(--text-muted);font-size:13px;cursor:pointer;
+    padding:3px 7px;border-radius:6px;line-height:1;flex-shrink:0;
+  }
+  .icon-btn:hover{background:var(--border-soft);color:#b91c1c;}
   .company-stat-row{display:flex;gap:24px;margin-bottom:16px;}
   .company-stat .stat-label{font-size:11.5px;color:var(--text-muted);margin-bottom:4px;font-weight:600;}
   .company-stat .stat-value{font-size:18px;font-weight:800;letter-spacing:-0.01em;}
@@ -94,6 +100,15 @@
   .status-chip.apply{background:rgba(var(--accent-rgb),0.13);color:var(--accent);}
   .status-chip.progress{background:rgba(var(--accent-rgb),0.32);color:var(--accent);}
   .status-chip.done{background:var(--accent);color:#fff;}
+
+  .status-select{
+    font-family:inherit;font-size:11.5px;font-weight:700;padding:5px 8px;border-radius:999px;
+    border:1px solid transparent;cursor:pointer;
+  }
+  .status-select.apply{background:rgba(var(--accent-rgb),0.13);color:var(--accent);}
+  .status-select.progress{background:rgba(var(--accent-rgb),0.32);color:var(--accent);}
+  .status-select.done{background:var(--accent);color:#fff;}
+  .status-select:focus{outline:2px solid var(--accent);outline-offset:1px;}
 
   /* ---------- empty state ---------- */
   .empty-state{grid-column:1/-1;text-align:center;padding:56px 20px;}
@@ -158,6 +173,7 @@
   <div class="toolbar">
     <div class="toolbar-info" id="lastUpdated">아직 업로드된 데이터가 없어요</div>
     <div class="toolbar-actions">
+      <button class="btn-secondary" onclick="resetAll()">전체 초기화</button>
       <button class="btn-secondary" onclick="downloadTemplate()">양식 다운로드</button>
       <label class="btn-primary" for="fileInput">엑셀 업로드</label>
       <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFile(event)" hidden>
@@ -261,9 +277,50 @@
   }
   function hideStatus() { document.getElementById('statusMsg').style.display = 'none'; }
 
+  function statusClass(status) {
+    return status === '신청' ? 'apply' : status === '진행중' ? 'progress' : 'done';
+  }
   function statusChip(status) {
-    const cls = status === '신청' ? 'apply' : status === '진행중' ? 'progress' : 'done';
-    return `<span class="status-chip ${cls}">${escapeHtml(status || '-')}</span>`;
+    return `<span class="status-chip ${statusClass(status)}">${escapeHtml(status || '-')}</span>`;
+  }
+  function buildStatusSelect(c) {
+    const opts = ['신청', '진행중', '종료'].map(s =>
+      `<option value="${s}" ${c.status === s ? 'selected' : ''}>${s}</option>`
+    ).join('');
+    return `<select class="status-select ${statusClass(c.status)}"
+      onclick="event.stopPropagation()"
+      onchange="changeCaseStatus('${jsStr(c.case_no)}', this.value)">${opts}</select>`;
+  }
+
+  function changeCaseStatus(caseNo, newStatus) {
+    const idx = allCases.findIndex(x => x.case_no === caseNo && x.creditor_company === currentCompany);
+    if (idx === -1) return;
+    const c = allCases[idx];
+    const oldStatus = c.status;
+    if (oldStatus === newStatus) return;
+
+    c.status = newStatus;
+    if (newStatus === '종료' && !c.close_date) c.close_date = new Date().toISOString().slice(0, 10);
+    if (oldStatus === '종료' && newStatus !== '종료') c.close_date = '';
+
+    allProgress.push({
+      case_no: caseNo,
+      creditor_company: currentCompany,
+      progress_date: new Date().toISOString().slice(0, 10),
+      status: newStatus,
+      note: `상태 변경: ${oldStatus} → ${newStatus}`
+    });
+
+    const payload = { cases: allCases, progress: allProgress, updatedAt: new Date().toISOString() };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    updateLastUpdatedLabel(payload.updatedAt);
+
+    if (document.getElementById('viewCaseDetail').style.display !== 'none') {
+      showCaseDetail(caseNo);
+    } else {
+      renderCaseListHeader();
+      renderCaseTable();
+    }
   }
 
   function sortCompanies(list) {
@@ -276,11 +333,15 @@
     });
   }
 
-  // 회사명 표기 차이(공백, 괄호 모양, ㈜/㈱ 같은 특수기호 등)를 무시하고 같은 회사로 인식시킴
+  // 회사명 표기 차이("(주)" 유무, 공백, 특수기호 등)를 무시하고 같은 회사로 인식시킴
   function companyMatchKey(s) {
     return String(s ?? '')
       .normalize('NFC')
-      .replace(/[（）()㈜㈱]/g, '')
+      .replace(/주식회사/g, '')
+      .replace(/\(\s*주\s*\)/g, '')
+      .replace(/（\s*주\s*）/g, '')
+      .replace(/[㈜㈱]/g, '')
+      .replace(/[（）()]/g, '')
       .replace(/\s+/g, '')
       .trim();
   }
@@ -428,6 +489,26 @@
     XLSX.writeFile(wb, '채권추심_업로드양식.xlsx');
   }
 
+  function resetAll() {
+    if (!confirm('정말 모든 데이터를 삭제할까요? 이 작업은 되돌릴 수 없어요.')) return;
+    localStorage.removeItem(STORAGE_KEY);
+    allCases = [];
+    allProgress = [];
+    updateLastUpdatedLabel(null);
+    showCompanies();
+    renderCompanies();
+  }
+
+  function deleteCompany(name) {
+    if (!confirm(`"${name}" 데이터를 전부 삭제할까요?`)) return;
+    allCases = allCases.filter(c => c.creditor_company !== name);
+    allProgress = allProgress.filter(p => p.creditor_company !== name);
+    const payload = { cases: allCases, progress: allProgress, updatedAt: new Date().toISOString() };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    updateLastUpdatedLabel(payload.updatedAt);
+    renderCompanies();
+  }
+
   /* ---------- 화면 전환 ---------- */
   function showView(id) {
     ['viewCompanies', 'viewCases', 'viewCaseDetail'].forEach(v => {
@@ -482,7 +563,10 @@
       const doneCount = rows.filter(c => c.status === '종료').length;
       return `
         <div class="company-card" onclick="showCases('${jsStr(name)}')">
-          <div class="company-name">${escapeHtml(name)}</div>
+          <div class="company-card-top">
+            <div class="company-name">${escapeHtml(name)}</div>
+            <button class="icon-btn" title="이 회사 데이터 삭제" onclick="event.stopPropagation(); deleteCompany('${jsStr(name)}')">✕</button>
+          </div>
           <div class="company-stat-row">
             <div class="company-stat"><div class="stat-label">신청 건수</div><div class="stat-value">${fmtNum(total)}건</div></div>
             <div class="company-stat"><div class="stat-label">총 채권추심금액</div><div class="stat-value">${fmtWon(amount)}</div></div>
@@ -523,7 +607,7 @@
         <td>${escapeHtml(c.business_reg_no || '-')}</td>
         <td>${escapeHtml(c.representative_name || '-')}</td>
         <td>${fmtWon(c.amount)}</td>
-        <td>${statusChip(c.status)}</td>
+        <td>${buildStatusSelect(c)}</td>
         <td>${escapeHtml(c.apply_date || '-')}</td>
       </tr>`).join('');
   }
@@ -543,7 +627,7 @@
       <div><div class="info-label">사업자등록번호</div><div class="info-value">${escapeHtml(c.business_reg_no || '-')}</div></div>
       <div><div class="info-label">대표자명</div><div class="info-value">${escapeHtml(c.representative_name || '-')}</div></div>
       <div><div class="info-label">채권 금액</div><div class="info-value">${fmtWon(c.amount)}</div></div>
-      <div><div class="info-label">상태</div><div class="info-value">${statusChip(c.status)}</div></div>
+      <div><div class="info-label">상태</div><div class="info-value">${buildStatusSelect(c)}</div></div>
       <div><div class="info-label">신청일자</div><div class="info-value">${escapeHtml(c.apply_date || '-')}</div></div>
       ${c.close_date ? `<div><div class="info-label">종료일자</div><div class="info-value">${escapeHtml(c.close_date)}</div></div>` : ''}
     `;

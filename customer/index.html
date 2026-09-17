@@ -35,6 +35,11 @@
   header{margin-bottom:28px;}
   header h1{font-size:22px;font-weight:800;letter-spacing:-0.02em;}
   header .header-sub{font-size:13px;color:var(--text-muted);margin-top:6px;}
+  .month-select-row{display:flex;align-items:center;gap:8px;margin-top:14px;}
+  .month-select-row label{font-size:12.5px;font-weight:700;color:var(--text-muted);}
+  .month-select-row select{font-size:13.5px;font-weight:700;color:var(--text);background:var(--surface);
+    border:1px solid var(--border-soft);border-radius:8px;padding:6px 10px;cursor:pointer;}
+  .month-select-row select:disabled{cursor:default;opacity:0.6;}
   .hub-link{
     display:inline-flex;align-items:center;gap:5px;
     font-size:12.5px;font-weight:600;color:var(--text-muted);
@@ -175,13 +180,16 @@
     <a class="hub-link" href="/">← 허브로 돌아가기</a>
     <h1>고객 대시보드</h1>
     <p class="header-sub">거래처별 매출 원본 데이터를 기준으로 자동 계산돼요.</p>
+    <div class="month-select-row">
+      <label for="monthSelect">기준월</label>
+      <select id="monthSelect" disabled><option>불러오는 중...</option></select>
+    </div>
   </header>
 
   <section class="cards">
     <div class="card total">
       <div class="card-label">활동 거래처 수</div>
       <div class="card-value" id="cardTotalValue">-</div>
-      <div class="card-delta" id="cardTotalDelta"></div>
     </div>
     <div class="card">
       <div class="card-label">재구매율 (6개월)</div>
@@ -214,7 +222,7 @@
     </div>
     <div class="panel">
       <h2 class="section-title">거래처 구성</h2>
-      <p class="section-caption" id="donutCaption">실제 매출 데이터 기준으로 계산한 구성이에요</p>
+      <p class="section-caption">실제 매출 데이터 기준으로 계산한 구성이에요</p>
       <div class="donut-block" id="donutBlock">
         <div class="empty-msg">불러오는 중...</div>
       </div>
@@ -315,8 +323,8 @@
     1) SUPABASE_URL      → Project URL
     2) SUPABASE_ANON_KEY → anon public key
   */
-const SUPABASE_URL = "https://mcypzsammvrthfqihkwy.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeXB6c2FtbXZydGhmcWloa3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzOTk1NzcsImV4cCI6MjEwMTk3NTU3N30.oUcfA-F0S9QHgpK56qvB0-aczx7AMPXDCtkVtNrJ3QM";
+  const SUPABASE_URL = "https://your-project.supabase.co";
+  const SUPABASE_ANON_KEY = "your-anon-key";
 
   // 이탈률 목표선(%) - 필요하면 이 숫자만 바꾸세요
   const CHURN_TARGET = 5.0;
@@ -457,22 +465,13 @@ const SUPABASE_URL = "https://mcypzsammvrthfqihkwy.supabase.co";
     return { months: summary, cohorts, repeat, bizFirstIndex, bizName, K };
   }
 
-  function renderCards(model, masterCount) {
+  function renderCards(model) {
     if (!model) return;
     const { months } = model;
     const latest = months[months.length - 1];
     const prev = months.length > 1 ? months[months.length - 2] : null;
 
     document.getElementById('cardTotalValue').textContent = fmtNum(latest.total);
-    const totalDeltaEl = document.getElementById('cardTotalDelta');
-    if (totalDeltaEl) {
-      if (masterCount > 0) {
-        const activeRate = (latest.total / masterCount) * 100;
-        totalDeltaEl.innerHTML = `전체 <span class="accent-text">${fmtNum(masterCount)}곳</span> 중 ${fmtPct(activeRate)} 활동 중`;
-      } else {
-        totalDeltaEl.textContent = '거래처 마스터 미등록';
-      }
-    }
 
     const repeat6 = model.repeat.find(r => r.period === '6개월');
     document.getElementById('cardRepeatValue').textContent = (repeat6 && repeat6.rate != null) ? fmtPct(repeat6.rate) : '데이터 부족';
@@ -531,7 +530,7 @@ const SUPABASE_URL = "https://mcypzsammvrthfqihkwy.supabase.co";
   }
 
   /* ---------- 거래처 구성 도넛 (실측치) ---------- */
-  function renderDonut(model, masterCount) {
+  function renderDonut(model) {
     const wrap = document.getElementById('donutBlock');
     if (!model || !model.months.length) { wrap.innerHTML = emptyMsg('데이터가 없어요'); return; }
 
@@ -549,20 +548,12 @@ const SUPABASE_URL = "https://mcypzsammvrthfqihkwy.supabase.co";
     const reactivatedSet = new Set();
     latestSet.forEach(b => { if (!newSet.has(b) && !retainedSet.has(b)) reactivatedSet.add(b); });
 
-    // 마스터(sales_customers)에 등록돼 있지만 이번 달 거래 기록이 전혀 없는 거래처
-    const dormantCount = masterCount > latestSet.size ? masterCount - latestSet.size : 0;
-
     const segments = [
       { label: '재거래', value: retainedSet.size, opacity: 1 },
       { label: '신규', value: newSet.size, opacity: 0.55 },
       { label: '휴면 복귀', value: reactivatedSet.size, opacity: 0.28 }
     ];
-    if (dormantCount > 0) {
-      segments.push({ label: '장기 미거래', value: dormantCount, opacity: 0.10 });
-    }
     const total = segments.reduce((a, s) => a + s.value, 0) || 1;
-    const donutTotalValue = dormantCount > 0 ? total : latestSet.size;
-    const donutTotalLabel = dormantCount > 0 ? '전체 거래처' : '활동 거래처';
 
     const r = 50, cx = 60, cy = 60;
     const circumference = 2 * Math.PI * r;
@@ -593,8 +584,8 @@ const SUPABASE_URL = "https://mcypzsammvrthfqihkwy.supabase.co";
           ${arcs}
         </svg>
         <div class="donut-center">
-          <div class="donut-total">${fmtNum(donutTotalValue)}</div>
-          <div class="donut-total-label">${donutTotalLabel}</div>
+          <div class="donut-total">${fmtNum(latestSet.size)}</div>
+          <div class="donut-total-label">활동 거래처</div>
         </div>
       </div>
       <div class="donut-legend">
@@ -847,50 +838,57 @@ const SUPABASE_URL = "https://mcypzsammvrthfqihkwy.supabase.co";
     return all;
   }
 
-  /* ---------- 거래처 마스터(sales_customers) 전체 등록 수 ---------- */
-  async function fetchMasterCount() {
-    try {
-      const { count, error } = await db.from('sales_customers').select('id', { count: 'exact', head: true });
-      if (error) throw error;
-      return count || 0;
-    } catch (e) {
-      console.error('거래처 마스터 조회 실패', e);
-      return 0;
-    }
+  /* ---------- 데이터 로드 & 기준월 선택 ---------- */
+  let allSalesRows = [];
+
+  function refreshForMonth(uptoKey) {
+    const filtered = allSalesRows.filter(r => monthKey(r.year, r.month_num) <= uptoKey);
+
+    const model = buildModel(filtered);
+    renderCards(model);
+    renderCohort(model);
+    renderDonut(model);
+    renderRepeatBars(model);
+    renderChurnTrend(model);
+
+    const bizStatus = computeBizStatus(filtered);
+    renderChurnCards(bizStatus);
+    renderChurnedTable(bizStatus);
+    renderAtRiskTable(bizStatus);
+    renderNewBizTable(bizStatus);
+    if (bizStatus) bindCsvButtons(bizStatus);
   }
 
-  /* ---------- 데이터 로드 ---------- */
+  function setupMonthSelect(model) {
+    const select = document.getElementById('monthSelect');
+    if (!model || !model.months.length) {
+      select.innerHTML = '<option>데이터 없음</option>';
+      return;
+    }
+    select.innerHTML = model.months
+      .map(m => `<option value="${m.key}">${m.year}년 ${m.month_num}월</option>`)
+      .join('');
+    const lastKey = model.months[model.months.length - 1].key;
+    select.value = lastKey;
+    select.disabled = false;
+    select.onchange = () => refreshForMonth(select.value);
+  }
+
   async function loadDashboard() {
     if (!isConfigured()) {
       showStatus('⚙️ 코드 상단의 SUPABASE_URL과 SUPABASE_ANON_KEY를 본인의 Supabase 정보로 바꿔주세요.');
       return;
     }
     try {
-      const [salesCustomerRows, masterCount] = await Promise.all([
-        fetchAllRows('sales_customer_monthly'),
-        fetchMasterCount()
-      ]);
-
+      allSalesRows = await fetchAllRows('sales_customer_monthly');
       hideStatus();
-      const donutCaption = document.getElementById('donutCaption');
-      if (donutCaption) {
-        donutCaption.textContent = masterCount > 0
-          ? '전체 등록 거래처 대비 구성이에요'
-          : '실제 매출 데이터 기준으로 계산한 구성이에요 (거래처 마스터 미등록)';
-      }
-      const model = buildModel(salesCustomerRows);
-      renderCards(model, masterCount);
-      renderCohort(model);
-      renderDonut(model, masterCount);
-      renderRepeatBars(model);
-      renderChurnTrend(model);
 
-      const bizStatus = computeBizStatus(salesCustomerRows);
-      renderChurnCards(bizStatus);
-      renderChurnedTable(bizStatus);
-      renderAtRiskTable(bizStatus);
-      renderNewBizTable(bizStatus);
-      if (bizStatus) bindCsvButtons(bizStatus);
+      const fullModel = buildModel(allSalesRows);
+      setupMonthSelect(fullModel);
+
+      if (fullModel && fullModel.months.length) {
+        refreshForMonth(fullModel.months[fullModel.months.length - 1].key);
+      }
     } catch (e) {
       showError(e);
     }

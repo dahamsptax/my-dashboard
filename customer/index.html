@@ -245,7 +245,7 @@
     </div>
   </section>
 
-  <section class="cards cards-3" style="margin-top:20px;">
+  <section class="cards" style="margin-top:20px;">
     <div class="card">
       <div class="card-label">이탈 거래처</div>
       <div class="card-value" id="cardChurnedCount">-</div>
@@ -261,6 +261,11 @@
       <div class="card-value" id="cardNewBizCount">-</div>
       <div class="card-delta" id="cardNewBizMonthLabel">이번 달 첫 거래</div>
     </div>
+    <div class="card card-clickable" id="cardReactivatedWrap">
+      <div class="card-label">휴면 복귀 <span class="card-toggle-icon" id="reactivatedToggleIcon">▾</span></div>
+      <div class="card-value" id="cardReactivatedCount">-</div>
+      <div class="card-delta">쉬었다가 이번 달 재거래 · 클릭해서 목록 보기</div>
+    </div>
   </section>
 
   <section class="panel" id="atRiskPanel" style="display:none;margin-top:16px;">
@@ -274,6 +279,22 @@
     <div class="table-scroll table-scroll-y">
       <table class="list-table" id="atRiskTable">
         <thead><tr><th>거래처</th><th>마지막 거래월</th><th style="text-align:right">마지막 금액</th></tr></thead>
+        <tbody><tr><td colspan="3">불러오는 중...</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" id="reactivatedPanel" style="display:none;margin-top:16px;">
+    <div class="panel-head-row">
+      <div>
+        <h2 class="section-title">휴면 복귀 거래처</h2>
+        <p class="section-caption" id="reactivatedCaption">중간에 거래가 끊겼다가 이번 달 다시 거래한 거래처</p>
+      </div>
+      <button class="btn-csv" id="reactivatedCsvBtn">엑셀 저장</button>
+    </div>
+    <div class="table-scroll table-scroll-y">
+      <table class="list-table" id="reactivatedTable">
+        <thead><tr><th>거래처</th><th>이전 마지막 거래월</th><th style="text-align:right">이번 달 매출</th></tr></thead>
         <tbody><tr><td colspan="3">불러오는 중...</td></tr></tbody>
       </table>
     </div>
@@ -686,9 +707,10 @@
     const prev1Key = prev1 ? prev1[0] : null;
     const prev2Key = prev2 ? prev2[0] : null;
 
-    const churned = [];   // 2개월 연속(직전+이번) 거래 없음, 그 전 달엔 있었음
-    const atRisk = [];    // 직전 달만 거래 없음 (이번 달 기준으로 최근 달에 없음)
-    const newBiz = [];    // 최신 달에 처음 등장
+    const churned = [];       // 2개월 연속(직전+이번) 거래 없음, 그 전 달엔 있었음
+    const atRisk = [];        // 직전 달만 거래 없음 (이번 달 기준으로 최근 달에 없음)
+    const newBiz = [];        // 최신 달에 처음 등장
+    const reactivated = [];   // 신규도 아니고 직전 달 연속도 아님(중간에 끊겼다 복귀)
 
     byBiz.forEach((info, biz) => {
       const hasLatest = info.byMonth.has(latestKey);
@@ -706,10 +728,21 @@
           atRisk.push({ biz, name: info.name, lastMonth: prev1, lastAmount: info.byMonth.get(prev1Key) });
         }
       } else {
-        // 이번 달엔 있음 → 이전 달들에 전혀 없었으면 신규
-        const hadAnyBefore = [...info.byMonth.keys()].some(k => k !== latestKey);
+        // 이번 달엔 있음
+        const otherKeys = [...info.byMonth.keys()].filter(k => k !== latestKey);
+        const hadAnyBefore = otherKeys.length > 0;
         if (!hadAnyBefore) {
+          // 이전 달들에 전혀 없었으면 신규
           newBiz.push({ biz, name: info.name, amount: info.byMonth.get(latestKey) });
+        } else if (!hasPrev1) {
+          // 이전 이력은 있지만 직전 달엔 없었음 → 중간에 끊겼다 복귀
+          const lastBeforeKey = otherKeys.sort().pop();
+          const lastBeforeM = monthSet.get(lastBeforeKey);
+          reactivated.push({
+            biz, name: info.name,
+            amount: info.byMonth.get(latestKey),
+            lastBeforeMonth: lastBeforeM
+          });
         }
       }
     });
@@ -717,8 +750,9 @@
     churned.sort((a, b) => b.lastAmount - a.lastAmount);
     atRisk.sort((a, b) => b.lastAmount - a.lastAmount);
     newBiz.sort((a, b) => b.amount - a.amount);
+    reactivated.sort((a, b) => b.amount - a.amount);
 
-    return { latest, prev1, prev2, churned, atRisk, newBiz };
+    return { latest, prev1, prev2, churned, atRisk, newBiz, reactivated };
   }
 
   function renderChurnedTable(status) {
@@ -768,6 +802,22 @@
       </tr>`).join('');
   }
 
+  function renderReactivatedTable(status) {
+    const tbody = document.querySelector('#reactivatedTable tbody');
+    const caption = document.getElementById('reactivatedCaption');
+    if (!status || !status.reactivated.length) {
+      tbody.innerHTML = `<tr><td colspan="3">${emptyMsg('휴면 복귀 거래처가 없어요')}</td></tr>`;
+      return;
+    }
+    caption.textContent = `중간에 끊겼다가 이번 달 다시 거래한 거래처 ${status.reactivated.length}곳 (이번 달 매출순)`;
+    tbody.innerHTML = status.reactivated.map(c => `
+      <tr>
+        <td class="name" title="${escapeHtml(c.name)}">${escapeHtml(c.name)}</td>
+        <td>${monthLabel(c.lastBeforeMonth.year, c.lastBeforeMonth.month_num)}</td>
+        <td class="num">${fmtWon(c.amount)}</td>
+      </tr>`).join('');
+  }
+
   /* ---------- 엑셀(CSV) 저장 ---------- */
   function downloadCSV(filename, headers, rows) {
     const escCell = (v) => {
@@ -801,23 +851,32 @@
       downloadCSV('신규_거래처.csv', ['거래처', '이번 달 매출'],
         status.newBiz.map(c => [c.name, c.amount]));
     };
+    document.getElementById('reactivatedCsvBtn').onclick = () => {
+      downloadCSV('휴면복귀_거래처.csv', ['거래처', '이전 마지막 거래월', '이번 달 매출'],
+        status.reactivated.map(c => [c.name, monthLabel(c.lastBeforeMonth.year, c.lastBeforeMonth.month_num), c.amount]));
+    };
   }
 
-  /* ---------- 위험군 카드 클릭 시 패널 토글 ---------- */
-  document.getElementById('cardAtRiskWrap').addEventListener('click', () => {
-    const panel = document.getElementById('atRiskPanel');
-    const icon = document.getElementById('atRiskToggleIcon');
-    const isHidden = panel.style.display === 'none';
-    panel.style.display = isHidden ? 'block' : 'none';
-    icon.textContent = isHidden ? '▴' : '▾';
-    if (isHidden) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  });
+  /* ---------- 위험군 / 휴면 복귀 카드 클릭 시 패널 토글 ---------- */
+  function bindCardToggle(cardId, panelId, iconId) {
+    document.getElementById(cardId).addEventListener('click', () => {
+      const panel = document.getElementById(panelId);
+      const icon = document.getElementById(iconId);
+      const isHidden = panel.style.display === 'none';
+      panel.style.display = isHidden ? 'block' : 'none';
+      icon.textContent = isHidden ? '▴' : '▾';
+      if (isHidden) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  }
+  bindCardToggle('cardAtRiskWrap', 'atRiskPanel', 'atRiskToggleIcon');
+  bindCardToggle('cardReactivatedWrap', 'reactivatedPanel', 'reactivatedToggleIcon');
 
   function renderChurnCards(status) {
     if (!status) return;
     document.getElementById('cardChurnedCount').textContent = fmtNum(status.churned.length);
     document.getElementById('cardAtRiskCount').textContent = fmtNum(status.atRisk.length);
     document.getElementById('cardNewBizCount').textContent = fmtNum(status.newBiz.length);
+    document.getElementById('cardReactivatedCount').textContent = fmtNum(status.reactivated.length);
     document.getElementById('cardNewBizMonthLabel').textContent =
       `${monthLabel(status.latest[1].year, status.latest[1].month_num)} 기준`;
   }
@@ -856,6 +915,7 @@
     renderChurnedTable(bizStatus);
     renderAtRiskTable(bizStatus);
     renderNewBizTable(bizStatus);
+    renderReactivatedTable(bizStatus);
     if (bizStatus) bindCsvButtons(bizStatus);
   }
 

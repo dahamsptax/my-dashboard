@@ -235,6 +235,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   /*
     엑셀 업로드 방식입니다. 파일 안에 시트 2개가 있어야 해요.
@@ -250,7 +251,13 @@
     - 상단 "양식 다운로드" 버튼을 누르면 이 구조 그대로 예시 파일을 받을 수 있어요.
   */
 
-  const STORAGE_KEY = 'collectionsData';
+  // ★ 아래 URL / KEY를 다함님의 Supabase 프로젝트 값으로 교체해주세요.
+   const SUPABASE_URL = "https://mcypzsammvrthfqihkwy.supabase.co";
+   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeXB6c2FtbXZydGhmcWloa3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzOTk1NzcsImV4cCI6MjEwMTk3NTU3N30.oUcfA-F0S9QHgpK56qvB0-aczx7AMPXDCtkVtNrJ3QM";
+
+  const { createClient } = supabase;
+  const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
   const COMPANY_ORDER = ['대상국제교역', '(주)디아이화스너', '픽스글로벌'];
 
   let allCases = [];
@@ -292,7 +299,7 @@
       onchange="changeCaseStatus('${jsStr(c.case_no)}', this.value)">${opts}</select>`;
   }
 
-  function changeCaseStatus(caseNo, newStatus) {
+  async function changeCaseStatus(caseNo, newStatus) {
     const idx = allCases.findIndex(x => x.case_no === caseNo && x.creditor_company === currentCompany);
     if (idx === -1) return;
     const c = allCases[idx];
@@ -303,17 +310,31 @@
     if (newStatus === '종료' && !c.close_date) c.close_date = new Date().toISOString().slice(0, 10);
     if (oldStatus === '종료' && newStatus !== '종료') c.close_date = '';
 
-    allProgress.push({
+    const newProgressRow = {
       case_no: caseNo,
       creditor_company: currentCompany,
       progress_date: new Date().toISOString().slice(0, 10),
       status: newStatus,
       note: `상태 변경: ${oldStatus} → ${newStatus}`
-    });
+    };
+    allProgress.push(newProgressRow);
 
-    const payload = { cases: allCases, progress: allProgress, updatedAt: new Date().toISOString() };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    updateLastUpdatedLabel(payload.updatedAt);
+    try {
+      const { error: e1 } = await sb.from('collection_case')
+        .update({ status: c.status, close_date: c.close_date || null })
+        .eq('creditor_company', currentCompany)
+        .eq('case_no', caseNo);
+      if (e1) throw e1;
+
+      const { error: e2 } = await sb.from('collection_progress').insert(newProgressRow);
+      if (e2) throw e2;
+
+      updateLastUpdatedLabel(new Date().toISOString());
+    } catch (err) {
+      console.error(err);
+      showStatus(`⚠️ 상태 변경을 저장하지 못했어요. 다시 시도해주세요.
+        <span class="status-detail">${escapeHtml(err?.message || err)}</span>`);
+    }
 
     if (document.getElementById('viewCaseDetail').style.display !== 'none') {
       showCaseDetail(caseNo);
@@ -399,7 +420,7 @@
     const file = evt.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const data = new Uint8Array(e.target.result);
         const wb = XLSX.read(data, { type: 'array', cellDates: true });
@@ -425,20 +446,29 @@
         // 이 파일에 들어있는 회사 목록
         const companiesInUpload = [...new Set(newCases.map(c => c.creditor_company).filter(Boolean))];
 
-        // 해당 회사들의 기존 데이터만 제거하고, 새 데이터로 교체 (다른 회사는 그대로 유지)
+        // 해당 회사들의 기존 데이터만 Supabase에서 삭제하고, 새 데이터로 교체 (다른 회사는 그대로 유지)
+        const { error: delCaseErr } = await sb.from('collection_case').delete().in('creditor_company', companiesInUpload);
+        if (delCaseErr) throw delCaseErr;
+        const { error: delProgErr } = await sb.from('collection_progress').delete().in('creditor_company', companiesInUpload);
+        if (delProgErr) throw delProgErr;
+
+        const { error: insCaseErr } = await sb.from('collection_case').insert(newCases);
+        if (insCaseErr) throw insCaseErr;
+        if (newProgress.length) {
+          const { error: insProgErr } = await sb.from('collection_progress').insert(newProgress);
+          if (insProgErr) throw insProgErr;
+        }
+
         allCases = allCases.filter(c => !companiesInUpload.includes(c.creditor_company)).concat(newCases);
         allProgress = allProgress.filter(p => !companiesInUpload.includes(p.creditor_company)).concat(newProgress);
 
-        const payload = { cases: allCases, progress: allProgress, updatedAt: new Date().toISOString() };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-
-        updateLastUpdatedLabel(payload.updatedAt);
+        updateLastUpdatedLabel(new Date().toISOString());
         hideStatus();
         showCompanies();
         renderCompanies();
       } catch (err) {
         console.error(err);
-        showStatus(`⚠️ 엑셀 파일을 읽는 중 문제가 발생했어요. 양식(시트 이름·열 이름)이 맞는지 확인해 주세요.
+        showStatus(`⚠️ 엑셀 파일을 읽거나 저장하는 중 문제가 발생했어요. 양식(시트 이름·열 이름)이 맞는지, Supabase 연결이 정상인지 확인해 주세요.
           <span class="status-detail">${escapeHtml(err?.message || err)}</span>`);
       } finally {
         evt.target.value = '';
@@ -455,18 +485,25 @@
     el.textContent = `마지막 업데이트: ${s}`;
   }
 
-  function loadFromStorage() {
+  async function loadFromSupabase() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const payload = JSON.parse(raw);
-        allCases = (payload.cases || []).map(c => ({ ...c, creditor_company: normalizeCompanyName(c.creditor_company) }));
-        allProgress = (payload.progress || []).map(p => ({ ...p, creditor_company: normalizeCompanyName(p.creditor_company) }));
-        updateLastUpdatedLabel(payload.updatedAt);
-        // 정규화된 값으로 다시 저장 (다음부터는 항상 깨끗한 상태로 시작)
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ cases: allCases, progress: allProgress, updatedAt: payload.updatedAt }));
-      }
-    } catch (e) { console.error(e); }
+      const [{ data: caseRows, error: caseErr }, { data: progRows, error: progErr }] = await Promise.all([
+        sb.from('collection_case').select('*'),
+        sb.from('collection_progress').select('*')
+      ]);
+      if (caseErr) throw caseErr;
+      if (progErr) throw progErr;
+
+      allCases = (caseRows || []).map(c => ({ ...c, creditor_company: normalizeCompanyName(c.creditor_company) }));
+      allProgress = (progRows || []).map(p => ({ ...p, creditor_company: normalizeCompanyName(p.creditor_company) }));
+
+      const latest = allCases.reduce((max, c) => (c.created_at && c.created_at > max ? c.created_at : max), '');
+      updateLastUpdatedLabel(latest || null);
+    } catch (e) {
+      console.error(e);
+      showStatus(`⚠️ 데이터를 불러오지 못했어요. Supabase 연결(URL/KEY)이 올바른지 확인해 주세요.
+        <span class="status-detail">${escapeHtml(e?.message || e)}</span>`);
+    }
     renderCompanies();
   }
 
@@ -489,9 +526,19 @@
     XLSX.writeFile(wb, '채권추심_업로드양식.xlsx');
   }
 
-  function resetAll() {
+  async function resetAll() {
     if (!confirm('정말 모든 데이터를 삭제할까요? 이 작업은 되돌릴 수 없어요.')) return;
-    localStorage.removeItem(STORAGE_KEY);
+    try {
+      const { error: e1 } = await sb.from('collection_case').delete().gt('id', 0);
+      if (e1) throw e1;
+      const { error: e2 } = await sb.from('collection_progress').delete().gt('id', 0);
+      if (e2) throw e2;
+    } catch (err) {
+      console.error(err);
+      showStatus(`⚠️ 삭제 중 문제가 발생했어요.
+        <span class="status-detail">${escapeHtml(err?.message || err)}</span>`);
+      return;
+    }
     allCases = [];
     allProgress = [];
     updateLastUpdatedLabel(null);
@@ -499,13 +546,22 @@
     renderCompanies();
   }
 
-  function deleteCompany(name) {
+  async function deleteCompany(name) {
     if (!confirm(`"${name}" 데이터를 전부 삭제할까요?`)) return;
+    try {
+      const { error: e1 } = await sb.from('collection_case').delete().eq('creditor_company', name);
+      if (e1) throw e1;
+      const { error: e2 } = await sb.from('collection_progress').delete().eq('creditor_company', name);
+      if (e2) throw e2;
+    } catch (err) {
+      console.error(err);
+      showStatus(`⚠️ 삭제 중 문제가 발생했어요.
+        <span class="status-detail">${escapeHtml(err?.message || err)}</span>`);
+      return;
+    }
     allCases = allCases.filter(c => c.creditor_company !== name);
     allProgress = allProgress.filter(p => p.creditor_company !== name);
-    const payload = { cases: allCases, progress: allProgress, updatedAt: new Date().toISOString() };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    updateLastUpdatedLabel(payload.updatedAt);
+    updateLastUpdatedLabel(new Date().toISOString());
     renderCompanies();
   }
 
@@ -650,7 +706,7 @@
       </div>`).join('');
   }
 
-  document.addEventListener('DOMContentLoaded', loadFromStorage);
+  document.addEventListener('DOMContentLoaded', loadFromSupabase);
 </script>
 </body>
 </html>

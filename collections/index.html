@@ -254,7 +254,6 @@
   // ★ 아래 URL / KEY를 다함님의 Supabase 프로젝트 값으로 교체해주세요.
    const SUPABASE_URL = "https://mcypzsammvrthfqihkwy.supabase.co";
    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeXB6c2FtbXZydGhmcWloa3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzOTk1NzcsImV4cCI6MjEwMTk3NTU3N30.oUcfA-F0S9QHgpK56qvB0-aczx7AMPXDCtkVtNrJ3QM";
-
   const { createClient } = supabase;
   const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -392,6 +391,14 @@
     if (typeof v === 'number') return v;
     return Number(String(v).replace(/,/g, '').trim()) || 0;
   }
+  // Supabase의 date 타입 컬럼은 빈 문자열('')을 허용하지 않아 null로 바꿔줘야 함
+  function forDb(rows, dateFields) {
+    return rows.map(r => {
+      const copy = { ...r };
+      dateFields.forEach(f => { if (copy[f] === '') copy[f] = null; });
+      return copy;
+    });
+  }
 
   /* ---------- 엑셀 → 데이터 변환 ---------- */
   function normalizeCase(row) {
@@ -452,10 +459,10 @@
         const { error: delProgErr } = await sb.from('collection_progress').delete().in('creditor_company', companiesInUpload);
         if (delProgErr) throw delProgErr;
 
-        const { error: insCaseErr } = await sb.from('collection_case').insert(newCases);
+        const { error: insCaseErr } = await sb.from('collection_case').insert(forDb(newCases, ['apply_date', 'close_date']));
         if (insCaseErr) throw insCaseErr;
         if (newProgress.length) {
-          const { error: insProgErr } = await sb.from('collection_progress').insert(newProgress);
+          const { error: insProgErr } = await sb.from('collection_progress').insert(forDb(newProgress, ['progress_date']));
           if (insProgErr) throw insProgErr;
         }
 

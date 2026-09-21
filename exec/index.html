@@ -24,7 +24,7 @@
 
     /* 영역별 5색 */
     --c-sales:#2563eb;      /* 매출 - 파랑 */
-    --c-marketing:#ea580c;  /* 광고비 - 주황 */
+    --c-marketing:#ea580c;  /* 채권추심 - 주황 */
     --c-customer:#0d9488;   /* 고객 - 청록 */
     --c-profit:#16a34a;     /* 이익 - 초록 */
     --c-people:#7c3aed;     /* 인력 - 보라 */
@@ -209,10 +209,10 @@
     </div>
     <div class="card area-card">
       <div class="area-band" style="background:var(--c-marketing)"></div>
-      <div class="area-label">광고비</div>
-      <div class="area-value skeleton" id="marketingValue">&nbsp;</div>
-      <div class="area-sub" id="marketingSub">불러오는 중</div>
-      <div class="status-row" id="marketingStatus"></div>
+      <div class="area-label">채권추심</div>
+      <div class="area-value skeleton" id="collectionValue">&nbsp;</div>
+      <div class="area-sub" id="collectionSub">불러오는 중</div>
+      <div class="status-row" id="collectionStatus"></div>
     </div>
     <div class="card area-card">
       <div class="area-band" style="background:var(--c-customer)"></div>
@@ -258,7 +258,7 @@
   <!-- 6개월 종합 추이 -->
   <div class="card">
     <p class="panel-title">6개월 종합 추이</p>
-    <p class="panel-sub">매출 · 영업이익 · 광고비</p>
+    <p class="panel-sub">매출(손익 기준) · 영업이익 · 채권추심 잔액 — 같은 축에서 비교하기 위해 매출은 손익 테이블 값을 사용합니다</p>
     <div class="trend-legend" id="trendLegend"></div>
     <div class="trend-wrap" id="trendWrap">
       <div class="skeleton" style="height:260px;"></div>
@@ -266,7 +266,7 @@
   </div>
 </div>
 
-<footer>이 화면은 5개 상세 대시보드(매출·마케팅·고객·손익·인사)의 핵심 숫자만 모아 30초 안에 상태를 파악하는 용도입니다. 자세한 숫자는 각 대시보드에서 확인하세요.</footer>
+<footer>이 화면은 5개 상세 대시보드(매출·채권추심·고객·손익·인사)의 핵심 숫자만 모아 30초 안에 상태를 파악하는 용도입니다. 자세한 숫자는 각 대시보드에서 확인하세요.</footer>
 
 <!-- ============================================================
      Supabase 연결 (요청하신 방식 그대로 — type="module" 사용 안 함)
@@ -286,17 +286,20 @@
 <!-- ============================================================
      대시보드 로직
 
-     [테이블 스키마 가정 — 실제와 다르면 이 부분 컬럼명만 바꿔주세요]
-     sales_monthly     : sort_order, month, revenue
-     marketing_monthly : sort_order, month, spend, revenue(광고 기여 매출)
-     customer_summary  : sort_order, month, total_customers, new_customers, churned_customers
-     pl_summary        : sort_order, month, revenue, cogs, sga, other_cost
+     [실제 Supabase 테이블 구조 — 금액은 모두 만원 단위]
+     sales_monthly     : sort_order, month, revenue, target, total_customers, avg_growth_rate
+                         → 매출 카드(revenue, 목표는 최신 행의 target) + 고객 카드(total_customers)
+     collection_case   : creditor_company, case_no, amount(원), status, apply_date, close_date
+                         → 채권추심 카드·변화·추이. status가 '신청'/'진행중'이 아니면(종료, 진행종료 등) 종료로 봄
+     pl_summary       : sort_order, month, revenue, cogs, sga, other_cost
+                         → 영업이익·영업이익률, 6개월 추이의 매출
      hr_monthly        : sort_order, month, headcount, payroll, joined, left_count, revenue
      exec_target       : area, target, green, yellow
-       - area 값은 정확히 '매출' / '광고비' / '고객' / '이익' / '인력' 문자열이어야 합니다.
-       - target: 해당 영역의 목표값(매출→매출목표, 광고비→광고비목표, 고객→고객수목표,
-                 이익→영업이익목표, 인력→인원목표)
+       - area 값은 정확히 '매출' / '영업이익' / '인건비율' 문자열이어야 합니다. ('ROAS' 행은 더 이상 사용하지 않음)
+       - 매출→sales_monthly 최신 행에 target이 없을 때만 쓰는 대체 목표(만원), 영업이익→영업이익목표(만원),
+         인건비율→인건비/매출 목표(%, 낮을수록 좋음 → 달성률 = 목표/실적)
        - green / yellow: 달성률(%) 기준선. 예) green=100, yellow=85
+       - '고객'·'채권추심' 카드는 목표 행이 없어 '목표 미설정'으로 표시됩니다.
      ============================================================ -->
 <script>
 (function(){
@@ -316,13 +319,13 @@
     if(n === null || n === undefined || isNaN(n)) return "-";
     return Math.round(n).toLocaleString("ko-KR");
   }
-  function fmtWonCompact(n){
+  // DB의 금액 컬럼은 모두 '만원' 단위입니다 (sales_index.html과 동일).
+  function fmtManwon(n){
     if(n === null || n === undefined || isNaN(n)) return "-";
     var sign = n < 0 ? "-" : "";
     var abs = Math.abs(n);
-    if(abs >= 100000000){ return sign + (abs/100000000).toFixed(1) + "억원"; }
-    if(abs >= 10000){ return sign + Math.round(abs/10000).toLocaleString("ko-KR") + "만원"; }
-    return sign + Math.round(abs).toLocaleString("ko-KR") + "원";
+    if(abs >= 10000){ return sign + (abs/10000).toFixed(1) + "억원"; }
+    return sign + Math.round(abs).toLocaleString("ko-KR") + "만원";
   }
   function fmtPct(n, d){
     if(n === null || n === undefined || isNaN(n)) return "-";
@@ -353,9 +356,17 @@
   }
 
   // ---------- 신호등 ----------
+  // 달성률 계산: 높을수록 좋은 지표는 실적/목표, 낮을수록 좋은 지표(인건비율)는 목표/실적
+  function achvHigher(actual, t){
+    return (actual !== null && t && t.target) ? (actual / t.target) * 100 : null;
+  }
+  function achvLower(actual, t){
+    return (actual && t && t.target) ? (t.target / actual) * 100 : null;
+  }
+
   function renderStatus(containerId, achvRate, target){
     var box = $(containerId);
-    if(!target){
+    if(!target || achvRate === null){
       box.innerHTML = "<span class=\"status-dot\" style=\"background:#c3c2b7\"></span><span class=\"status-text\" style=\"color:var(--text-muted)\">목표 미설정</span>";
       return;
     }
@@ -386,10 +397,8 @@
     try{
       var salesRes = await db.from("sales_monthly").select("*").order("sort_order", { ascending:true });
       if(salesRes.error) throw salesRes.error;
-      var marketingRes = await db.from("marketing_monthly").select("*").order("sort_order", { ascending:true });
-      if(marketingRes.error) throw marketingRes.error;
-      var customerRes = await db.from("customer_summary").select("*").order("sort_order", { ascending:true });
-      if(customerRes.error) throw customerRes.error;
+      var caseRes = await db.from("collection_case").select("*");
+      if(caseRes.error) throw caseRes.error;
       var plRes = await db.from("pl_summary").select("*").order("sort_order", { ascending:true });
       if(plRes.error) throw plRes.error;
       var hrRes = await db.from("hr_monthly").select("*").order("sort_order", { ascending:true });
@@ -397,25 +406,53 @@
       var targetRes = await db.from("exec_target").select("*");
       if(targetRes.error) throw targetRes.error;
 
-      var sales = salesRes.data || [];
-      var marketing = marketingRes.data || [];
-      var customer = customerRes.data || [];
+      var salesMonthly = salesRes.data || [];
+      var cases = caseRes.data || [];
       var pl = plRes.data || [];
       var hr = hrRes.data || [];
-      var targets = {};
-      (targetRes.data || []).forEach(function(t){ targets[t.area] = { target:num(t.target), green:num(t.green), yellow:num(t.yellow) }; });
 
-      if(!sales.length && !pl.length && !hr.length){
-        throw new Error("불러올 데이터가 없습니다. sales_monthly / pl_summary / hr_monthly 테이블을 확인해주세요.");
+      // 목표: exec_target.area 값 그대로 사용 (매출 / 영업이익 / 인건비율)
+      var targetRows = {};
+      (targetRes.data || []).forEach(function(t){ targetRows[t.area] = { target:num(t.target), green:num(t.green), yellow:num(t.yellow) }; });
+      // 매출 목표: sales_monthly 최신 행의 target(만원)을 우선 사용하고, 없으면 exec_target 값 사용.
+      // (exec_target 매출 목표는 손익 규모라 sales_monthly 매출과 단위가 맞지 않음)
+      var salesTarget = targetRows["매출"] || { target:0, green:100, yellow:85 };
+      var salesRowTarget = num((last(salesMonthly) || {}).target);
+      if(salesRowTarget){ salesTarget = { target:salesRowTarget, green:salesTarget.green, yellow:salesTarget.yellow }; }
+      else if(!targetRows["매출"]){ salesTarget = null; }
+
+      var targets = {
+        sales: salesTarget,
+        collection: null, // exec_target에 채권추심 목표가 없음
+        customer: null, // exec_target에 '고객 수' 목표가 없음 (신규고객 목표는 신규 고객 데이터가 없어 사용 불가)
+        profit: targetRows["영업이익"] || null,
+        payroll: targetRows["인건비율"] || null
+      };
+
+      if(!pl.length && !hr.length){
+        throw new Error("불러올 데이터가 없습니다. pl_summary / hr_monthly 테이블을 확인해주세요.");
       }
 
-      var monthLabel = (last(sales) || last(pl) || last(hr) || {}).month;
-      setPageMetaLoaded(monthLabel);
+      // 매출은 sales_monthly 기준(최신 월). 손익·인력은 각 테이블의 마지막 월, 채권추심은 사건 데이터의 최신 월 기준입니다.
+      // 고객 수는 sales_monthly.total_customers를 쓰되, 손익 마지막 월까지의 행만 사용합니다
+      // (8월 행은 거래처 마스터 기준으로 집계 방식이 달라 전월과 직접 비교할 수 없음).
+      var monthLabel = (last(pl) || last(hr) || {}).month;
+      var salesMonth = (last(salesMonthly) || {}).month;
+      var customer = salesMonthly;
+      for(var i = salesMonthly.length - 1; i >= 0; i--){
+        if(salesMonthly[i].month === monthLabel){ customer = salesMonthly.slice(0, i + 1); break; }
+      }
+      var collYm = collectionLatestYm(cases);
+      var collMonth = collYm ? (Number(collYm.slice(5, 7)) + "월") : "";
+      var metaParts = [];
+      if(salesMonth && salesMonth !== monthLabel){ metaParts.push("매출 " + salesMonth); }
+      if(collMonth && collMonth !== monthLabel){ metaParts.push("채권추심 " + collMonth); }
+      setPageMetaLoaded(metaParts.length ? metaParts.join(" · ") + " · 그 외 " + monthLabel : monthLabel);
 
-      renderCardsAndStatus(sales, marketing, customer, pl, hr, targets);
-      renderAchievement(sales, marketing, customer, pl, hr, targets);
-      renderTopChanges(sales, marketing, customer, pl, hr);
-      renderTrend(sales, marketing, pl);
+      renderCardsAndStatus(salesMonthly, cases, customer, pl, hr, targets);
+      renderAchievement(salesMonthly, cases, customer, pl, hr, targets);
+      renderTopChanges(salesMonthly, cases, customer, pl, hr);
+      renderTrend(pl, cases); // 추이는 세 지표가 같은 축을 쓰도록 손익 기준 매출 사용
     } catch(err){
       showError(err);
     } finally {
@@ -438,83 +475,112 @@
     var payrollRatio = revenue !== 0 ? (payroll / revenue) * 100 : 0;
     return { headcount:headcount, joined:num(row.joined), leftCount:num(row.left_count), payrollRatio:payrollRatio };
   }
-  function marketingMetrics(row){
-    if(!row) return null;
-    var spend = num(row.spend), revenue = num(row.revenue);
-    var roas = spend !== 0 ? revenue / spend : 0;
-    return { spend:spend, roas:roas };
+  // ---------- 채권추심 (collection_case) ----------
+  // '신청'·'진행중'이 아닌 상태(종료, 진행종료 등)는 모두 종료로 봅니다 (채권추심 화면과 동일).
+  function isClosedCase(c){ return c.status !== "신청" && c.status !== "진행중"; }
+  function ymOf(d){ return d ? String(d).slice(0, 7) : ""; }
+  function prevYm(ym){
+    var y = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7)) - 1;
+    if(m === 0){ y--; m = 12; }
+    return y + "-" + (m < 10 ? "0" : "") + m;
+  }
+  // 사건 데이터에서 가장 늦은 월(신청·종료 기준), 예: "2026-09"
+  function collectionLatestYm(cases){
+    var latest = "";
+    cases.forEach(function(c){
+      var a = ymOf(c.apply_date), b = ymOf(c.close_date);
+      if(a > latest){ latest = a; }
+      if(b > latest){ latest = b; }
+    });
+    return latest;
+  }
+  // 현재 진행 중(신청+진행중) 건수·금액. 금액은 원 → 만원으로 환산
+  function collectionMetrics(cases){
+    if(!cases || !cases.length) return null;
+    var active = 0, closed = 0, amount = 0;
+    cases.forEach(function(c){
+      if(isClosedCase(c)){ closed++; } else { active++; amount += num(c.amount); }
+    });
+    return { activeCount:active, closedCount:closed, activeAmount:amount / 10000 };
+  }
+  // ym월 말 기준 진행 중 채권 잔액(만원): 그 달까지 신청됐고 아직 종료되지 않은 사건의 합계.
+  // 종료 상태인데 종료일이 없으면 가장 늦은 월에 종료된 것으로 봅니다.
+  function collectionOutstanding(cases, ym, latestYm){
+    var sum = 0;
+    cases.forEach(function(c){
+      var a = ymOf(c.apply_date);
+      if(!a || a > ym){ return; }
+      var closeYm = isClosedCase(c) ? (ymOf(c.close_date) || latestYm) : "";
+      if(closeYm && closeYm <= ym){ return; }
+      sum += num(c.amount);
+    });
+    return sum / 10000;
   }
   function customerMetrics(row){
     if(!row) return null;
-    var total = num(row.total_customers);
-    var churned = num(row.churned_customers);
-    var churnRate = total !== 0 ? (churned / total) * 100 : 0;
-    return { total:total, newCustomers:num(row.new_customers), churned:churned, churnRate:churnRate };
+    return { total:num(row.total_customers) };
   }
 
   // ---------- 카드 + 신호등 ----------
-  function renderCardsAndStatus(sales, marketing, customer, pl, hr, targets){
+  function renderCardsAndStatus(sales, cases, customer, pl, hr, targets){
     // 매출
     var salesNow = last(sales), salesPrev = prevOf(sales);
     var salesNowVal = num(salesNow && salesNow.revenue);
     var salesPrevVal = num(salesPrev && salesPrev.revenue);
     var salesEl = $("salesValue"); salesEl.classList.remove("skeleton");
-    salesEl.textContent = fmtWonCompact(salesNowVal);
+    salesEl.textContent = fmtManwon(salesNowVal);
     var salesChangePct = salesPrevVal !== 0 ? ((salesNowVal - salesPrevVal) / salesPrevVal) * 100 : null;
     $("salesSub").textContent = salesChangePct !== null ? "전월 대비 " + fmtSignedPct(salesChangePct) : "전월 데이터 없음";
-    var salesAchv = targets["매출"] && targets["매출"].target ? (salesNowVal / targets["매출"].target) * 100 : null;
-    renderStatus("salesStatus", salesAchv, targets["매출"]);
+    renderStatus("salesStatus", achvHigher(salesNowVal, targets.sales), targets.sales);
 
-    // 광고비
-    var mkNow = marketingMetrics(last(marketing));
-    var mkEl = $("marketingValue"); mkEl.classList.remove("skeleton");
-    mkEl.textContent = mkNow ? fmtWonCompact(mkNow.spend) : "-";
-    $("marketingSub").textContent = mkNow ? "ROAS " + mkNow.roas.toFixed(2) + "x" : "데이터 없음";
-    var mkAchv = (mkNow && targets["광고비"] && targets["광고비"].target) ? (mkNow.spend / targets["광고비"].target) * 100 : null;
-    renderStatus("marketingStatus", mkAchv, targets["광고비"]);
+    // 채권추심 (진행 중 채권 금액 — 목표 미설정)
+    var coNow = collectionMetrics(cases);
+    var coEl = $("collectionValue"); coEl.classList.remove("skeleton");
+    coEl.textContent = coNow ? fmtManwon(coNow.activeAmount) : "-";
+    $("collectionSub").textContent = coNow ? "진행 " + fmtNum(coNow.activeCount) + "건 · 종료 " + fmtNum(coNow.closedCount) + "건" : "데이터 없음";
+    renderStatus("collectionStatus", null, targets.collection);
 
-    // 고객
-    var cuNow = customerMetrics(last(customer));
+    // 고객 (총 고객 수 — 목표 미설정)
+    var cuNow = customerMetrics(last(customer)), cuPrev = customerMetrics(prevOf(customer));
     var cuEl = $("customerValue"); cuEl.classList.remove("skeleton");
     cuEl.textContent = cuNow ? fmtNum(cuNow.total) + "명" : "-";
-    $("customerSub").textContent = cuNow ? "신규 " + fmtNum(cuNow.newCustomers) + "명 · 이탈 " + fmtNum(cuNow.churned) + "명" : "데이터 없음";
-    var cuAchv = (cuNow && targets["고객"] && targets["고객"].target) ? (cuNow.total / targets["고객"].target) * 100 : null;
-    renderStatus("customerStatus", cuAchv, targets["고객"]);
+    $("customerSub").textContent = !cuNow ? "데이터 없음"
+      : cuPrev ? "전월 대비 " + (cuNow.total - cuPrev.total >= 0 ? "+" : "") + fmtNum(cuNow.total - cuPrev.total) + "명"
+      : "전월 데이터 없음";
+    renderStatus("customerStatus", null, targets.customer);
 
     // 이익
     var plNow = plMetrics(last(pl));
     var plEl = $("profitValue"); plEl.classList.remove("skeleton");
-    plEl.textContent = plNow ? fmtWonCompact(plNow.operatingProfit) : "-";
+    plEl.textContent = plNow ? fmtManwon(plNow.operatingProfit) : "-";
     $("profitSub").textContent = plNow ? "영업이익률 " + fmtPct(plNow.operatingMargin, 1) : "데이터 없음";
-    var plAchv = (plNow && targets["이익"] && targets["이익"].target) ? (plNow.operatingProfit / targets["이익"].target) * 100 : null;
-    renderStatus("profitStatus", plAchv, targets["이익"]);
+    renderStatus("profitStatus", plNow ? achvHigher(plNow.operatingProfit, targets.profit) : null, targets.profit);
 
-    // 인력
+    // 인력 (목표는 인건비율 기준 — 낮을수록 좋음)
     var hrNow = hrMetrics(last(hr));
     var hrEl = $("peopleValue"); hrEl.classList.remove("skeleton");
     hrEl.textContent = hrNow ? fmtNum(hrNow.headcount) + "명" : "-";
-    $("peopleSub").textContent = hrNow ? "입사 " + fmtNum(hrNow.joined) + "명 · 퇴사 " + fmtNum(hrNow.leftCount) + "명" : "데이터 없음";
-    var hrAchv = (hrNow && targets["인력"] && targets["인력"].target) ? (hrNow.headcount / targets["인력"].target) * 100 : null;
-    renderStatus("peopleStatus", hrAchv, targets["인력"]);
+    $("peopleSub").textContent = hrNow ? "입사 " + fmtNum(hrNow.joined) + " · 퇴사 " + fmtNum(hrNow.leftCount) + " · 인건비율 " + fmtPct(hrNow.payrollRatio, 1) : "데이터 없음";
+    renderStatus("peopleStatus", hrNow ? achvLower(hrNow.payrollRatio, targets.payroll) : null, targets.payroll);
   }
 
   // ---------- 목표 달성률 막대 ----------
-  function renderAchievement(sales, marketing, customer, pl, hr, targets){
+  function renderAchievement(sales, cases, customer, pl, hr, targets){
     var list = $("achvList");
     list.innerHTML = "";
 
     var salesNowVal = num((last(sales) || {}).revenue);
-    var mkNow = marketingMetrics(last(marketing));
     var cuNow = customerMetrics(last(customer));
     var plNow = plMetrics(last(pl));
     var hrNow = hrMetrics(last(hr));
 
+    // rate: 달성률(%). 목표가 없거나 데이터가 없으면 null
     var rows = [
-      { name:"매출", color:"var(--c-sales)", actual:salesNowVal, t:targets["매출"] },
-      { name:"광고비", color:"var(--c-marketing)", actual: mkNow ? mkNow.spend : null, t:targets["광고비"] },
-      { name:"고객", color:"var(--c-customer)", actual: cuNow ? cuNow.total : null, t:targets["고객"] },
-      { name:"이익", color:"var(--c-profit)", actual: plNow ? plNow.operatingProfit : null, t:targets["이익"] },
-      { name:"인력", color:"var(--c-people)", actual: hrNow ? hrNow.headcount : null, t:targets["인력"] }
+      { name:"매출", color:"var(--c-sales)", rate: achvHigher(salesNowVal, targets.sales) },
+      { name:"채권추심", color:"var(--c-marketing)", rate: null },
+      { name:"고객", color:"var(--c-customer)", rate: null },
+      { name:"영업이익", color:"var(--c-profit)", rate: plNow ? achvHigher(plNow.operatingProfit, targets.profit) : null },
+      { name:"인건비율 (낮을수록 좋음)", color:"var(--c-people)", rate: hrNow ? achvLower(hrNow.payrollRatio, targets.payroll) : null }
     ];
 
     var SCALE_MAX = 150; // 막대 표시 상한(%) — 100% 기준선 위치 계산용
@@ -522,14 +588,14 @@
     rows.forEach(function(r){
       var row = document.createElement("div");
       row.className = "achv-row";
-      if(r.actual === null || !r.t || !r.t.target){
+      if(r.rate === null){
         row.innerHTML =
           "<div class=\"achv-top\"><span class=\"achv-name\">" + r.name + "</span><span style=\"color:var(--text-muted); font-size:12px;\">목표 미설정</span></div>" +
           "<div class=\"achv-track\"></div>";
         list.appendChild(row);
         return;
       }
-      var rate = (r.actual / r.t.target) * 100;
+      var rate = r.rate;
       var fillPct = clamp((rate / SCALE_MAX) * 100, 0, 100);
       var hundredPct = clamp((100 / SCALE_MAX) * 100, 0, 100);
       row.innerHTML =
@@ -548,7 +614,7 @@
     return Math.abs((now - prevVal) / prevVal) * 100;
   }
 
-  function renderTopChanges(sales, marketing, customer, pl, hr){
+  function renderTopChanges(sales, cases, customer, pl, hr){
     var list = $("changeList");
     list.innerHTML = "";
 
@@ -567,25 +633,29 @@
       }
     }
 
-    // ROAS: 배수 변화
-    var mkNow = marketingMetrics(last(marketing)), mkPrev = marketingMetrics(prevOf(marketing));
-    if(mkNow && mkPrev){
-      var roasChange = mkNow.roas - mkPrev.roas;
-      candidates.push({
-        name:"ROAS", score:relScore(mkNow.roas, mkPrev.roas), good: roasChange >= 0,
-        desc:"광고 효율(ROAS)이 " + (roasChange >= 0 ? "좋아졌어요" : "나빠졌어요"),
-        value: (roasChange >= 0 ? "+" : "") + roasChange.toFixed(2) + "x"
-      });
+    // 채권추심 잔액: 전월 말 대비 % (진행 중 채권이 줄어드는 것이 좋음)
+    var coLatest = collectionLatestYm(cases);
+    if(coLatest){
+      var coNowAmt = collectionOutstanding(cases, coLatest, coLatest);
+      var coPrevAmt = collectionOutstanding(cases, prevYm(coLatest), coLatest);
+      if(coPrevAmt !== 0){
+        var coChange = ((coNowAmt - coPrevAmt) / coPrevAmt) * 100;
+        candidates.push({
+          name:"채권추심 잔액", score:relScore(coNowAmt, coPrevAmt), good: coChange <= 0,
+          desc:"진행 중인 채권추심 금액이 전월보다 " + (coChange <= 0 ? "줄었어요" : "늘었어요"),
+          value: fmtSignedPct(coChange)
+        });
+      }
     }
 
-    // 이탈률: %p 변화 (상승이 나쁨)
+    // 고객 수: 전월 대비 % (증가가 좋음)
     var cuNow = customerMetrics(last(customer)), cuPrev = customerMetrics(prevOf(customer));
-    if(cuNow && cuPrev){
-      var churnChange = cuNow.churnRate - cuPrev.churnRate;
+    if(cuNow && cuPrev && cuPrev.total !== 0){
+      var cuChange = ((cuNow.total - cuPrev.total) / cuPrev.total) * 100;
       candidates.push({
-        name:"이탈률", score:relScore(cuNow.churnRate, cuPrev.churnRate), good: churnChange <= 0,
-        desc:"고객 이탈률이 " + (churnChange <= 0 ? "낮아졌어요" : "높아졌어요"),
-        value: fmtSignedPP(churnChange)
+        name:"고객 수", score:relScore(cuNow.total, cuPrev.total), good: cuChange >= 0,
+        desc:"전체 고객 수가 전월보다 " + (cuChange >= 0 ? "늘었어요" : "줄었어요"),
+        value: fmtSignedPct(cuChange)
       });
     }
 
@@ -631,31 +701,37 @@
   }
 
   // ---------- 6개월 종합 추이 ----------
-  function renderTrend(sales, marketing, pl){
+  function renderTrend(pl, cases){
     var wrap = $("trendWrap");
     var legendBox = $("trendLegend");
     wrap.innerHTML = "";
     legendBox.innerHTML = "";
 
-    var n = Math.min(6, sales.length, marketing.length, pl.length);
+    var n = Math.min(6, pl.length);
     if(n < 2){
       wrap.innerHTML = "<div class=\"empty-note\">추이를 그리기엔 데이터가 부족합니다 (최소 2개월치 데이터가 필요해요).</div>";
       return;
     }
 
-    var sSlice = sales.slice(sales.length - n);
-    var mSlice = marketing.slice(marketing.length - n);
     var pSlice = pl.slice(pl.length - n);
 
-    var salesSeries = sSlice.map(function(r){ return num(r.revenue); });
-    var spendSeries = mSlice.map(function(r){ return num(r.spend); });
+    var salesSeries = pSlice.map(function(r){ return num(r.revenue); });
     var profitSeries = pSlice.map(function(r){ return plMetrics(r).operatingProfit; });
-    var labels = sSlice.map(function(r){ return r.month; });
+    var labels = pSlice.map(function(r){ return r.month; });
+
+    // 채권추심 잔액: 손익 월 라벨("7월")을 채권추심 데이터의 최신 연도의 같은 월로 대응시킵니다.
+    var coLatest = collectionLatestYm(cases);
+    var coYear = coLatest ? coLatest.slice(0, 4) : "";
+    var collectionSeries = labels.map(function(lab){
+      var m = parseInt(lab, 10);
+      if(!coYear || isNaN(m)){ return 0; }
+      return collectionOutstanding(cases, coYear + "-" + (m < 10 ? "0" : "") + m, coLatest);
+    });
 
     var series = [
-      { name:"매출", color:"#2563eb", values:salesSeries },
+      { name:"매출(손익 기준)", color:"#2563eb", values:salesSeries },
       { name:"영업이익", color:"#16a34a", values:profitSeries },
-      { name:"광고비", color:"#ea580c", values:spendSeries }
+      { name:"채권추심 잔액", color:"#ea580c", values:collectionSeries }
     ];
 
     series.forEach(function(s){
@@ -665,7 +741,7 @@
       legendBox.appendChild(item);
     });
 
-    var allVals = [].concat(salesSeries, spendSeries, profitSeries, [0]);
+    var allVals = [].concat(salesSeries, collectionSeries, profitSeries, [0]);
     var minVal = Math.min.apply(null, allVals);
     var maxVal = Math.max.apply(null, allVals);
     minVal = minVal < 0 ? minVal * 1.15 : 0;
@@ -688,7 +764,7 @@
       var yy = y(val);
       svg.appendChild(el("line", { x1:plotLeft, x2:plotRight, y1:yy, y2:yy, stroke:"#f1f0ec", "stroke-width":1 }));
       var lbl = el("text", { x:plotLeft - 8, y:yy + 4, "text-anchor":"end", fill:"#898781", "font-size":"11" });
-      lbl.textContent = fmtWonCompact(val);
+      lbl.textContent = fmtManwon(val);
       svg.appendChild(lbl);
     }
 
@@ -712,7 +788,7 @@
         x:x(lastIdx) + 8, y:y(s.values[lastIdx]) + 4, "text-anchor":"start",
         fill:s.color, "font-size":"12", "font-weight":"700"
       });
-      endLabel.textContent = fmtWonCompact(s.values[lastIdx]);
+      endLabel.textContent = fmtManwon(s.values[lastIdx]);
       svg.appendChild(endLabel);
     });
 

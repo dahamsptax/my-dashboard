@@ -131,7 +131,18 @@
   .data-table td{font-size:13.5px;padding:13px 12px;border-bottom:1px solid var(--border-soft);
     white-space:nowrap;}
   .data-table td:nth-child(4){text-align:right;font-weight:700;}
-  .data-table td.td-remark{white-space:normal;max-width:200px;color:var(--text-muted);}
+  .data-table td.td-remark{white-space:normal;max-width:200px;color:var(--text-muted);padding:6px 8px;}
+  .remark-input{
+    font-family:inherit;font-size:12.5px;padding:6px 7px;border:1px solid transparent;
+    border-radius:6px;width:100%;background:transparent;color:var(--text-muted);
+  }
+  .remark-input:hover{background:var(--border-soft);}
+  .remark-input:focus{outline:none;border-color:var(--accent);background:#fff;color:var(--text);}
+  .remark-textarea{
+    font-family:inherit;font-size:13.5px;padding:9px 10px;border:1px solid var(--border);
+    border-radius:8px;width:100%;min-height:60px;resize:vertical;color:var(--text);
+  }
+  .remark-textarea:focus{outline:none;border-color:var(--accent);}
   .data-table tr:last-child td{border-bottom:none;}
   .data-table tbody tr{cursor:pointer;transition:background .1s ease;}
   .data-table tbody tr:hover{background:var(--border-soft);}
@@ -371,6 +382,17 @@
     el.style.display = 'block';
   }
   function hideStatus() { document.getElementById('statusMsg').style.display = 'none'; }
+
+  function updateRemark(caseNo, value) {
+    const idx = allCases.findIndex(x => x.case_no === caseNo && x.creditor_company === currentCompany);
+    if (idx === -1) return;
+    const v = value.trim();
+    if (allCases[idx].remark === v) return;
+    allCases[idx].remark = v;
+    const payload = { cases: allCases, progress: allProgress, updatedAt: new Date().toISOString() };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    updateLastUpdatedLabel(payload.updatedAt);
+  }
 
   function statusClass(status) {
     return status === '신청' ? 'apply' : status === '진행중' ? 'progress' : 'done';
@@ -863,7 +885,11 @@
         <td>${buildStatusSelect(c)}</td>
         <td>${escapeHtml(c.apply_date || '-')}</td>
         ${showClose ? `<td>${escapeHtml(c.close_date || '-')}</td>` : ''}
-        <td class="td-remark">${escapeHtml(c.remark || '-')}</td>
+        <td class="td-remark">
+          <input type="text" class="remark-input" value="${escapeHtml(c.remark || '')}" placeholder="메모"
+            onclick="event.stopPropagation()"
+            onchange="updateRemark('${jsStr(c.case_no)}', this.value)">
+        </td>
       </tr>`).join('');
   }
 
@@ -885,7 +911,9 @@
       <div><div class="info-label">채권 금액</div><div class="info-value">${fmtWon(c.amount)}</div></div>
       <div><div class="info-label">상태</div><div class="info-value">${buildStatusSelect(c)}</div></div>
       <div><div class="info-label">신청일자</div><div class="info-value">${escapeHtml(c.apply_date || '-')}</div></div>
-      <div style="grid-column:1/-1;"><div class="info-label">비고</div><div class="info-value" style="font-size:13.5px;white-space:pre-wrap;">${escapeHtml(c.remark || '-')}</div></div>
+      <div style="grid-column:1/-1;"><div class="info-label">비고</div>
+        <textarea class="remark-textarea" placeholder="메모" onchange="updateRemark('${jsStr(c.case_no)}', this.value)">${escapeHtml(c.remark || '')}</textarea>
+      </div>
       ${c.close_date ? `<div><div class="info-label">종료일자</div><div class="info-value">${escapeHtml(c.close_date)}</div></div>` : ''}
     `;
 

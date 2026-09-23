@@ -131,6 +131,7 @@
   .data-table td{font-size:13.5px;padding:13px 12px;border-bottom:1px solid var(--border-soft);
     white-space:nowrap;}
   .data-table td:nth-child(4){text-align:right;font-weight:700;}
+  .data-table td.td-remark{white-space:normal;max-width:200px;color:var(--text-muted);}
   .data-table tr:last-child td{border-bottom:none;}
   .data-table tbody tr{cursor:pointer;transition:background .1s ease;}
   .data-table tbody tr:hover{background:var(--border-soft);}
@@ -170,12 +171,13 @@
   .modal-body{padding:18px 20px;display:flex;flex-direction:column;gap:14px;}
   .form-row{display:flex;flex-direction:column;gap:6px;}
   .form-row label{font-size:12px;font-weight:700;color:var(--text-muted);}
-  .form-row input, .form-row select{
+  .form-row input, .form-row select, .form-row textarea{
     font-family:inherit;font-size:13.5px;padding:9px 12px;border:1px solid var(--border);
     border-radius:8px;color:var(--text);width:100%;
   }
   .form-row input:disabled{background:var(--border-soft);color:var(--text-muted);}
-  .form-row input:focus, .form-row select:focus{outline:none;border-color:var(--accent);}
+  .form-row textarea{resize:vertical;font-family:inherit;}
+  .form-row input:focus, .form-row select:focus, .form-row textarea:focus{outline:none;border-color:var(--accent);}
   .modal-footer{display:flex;justify-content:flex-end;gap:8px;padding:16px 20px;border-top:1px solid var(--border);}
 
   @media (max-width:640px){
@@ -233,11 +235,11 @@
     <div class="panel">
       <div class="table-scroll">
         <table class="data-table">
-          <thead>
-            <tr><th>회사명</th><th>사업자등록번호</th><th>대표자명</th><th>금액</th><th>상태</th><th>신청일자</th></tr>
+          <thead id="caseThead">
+            <tr><th>회사명</th><th>사업자등록번호</th><th>대표자명</th><th>금액</th><th>상태</th><th>신청일자</th><th>비고</th></tr>
           </thead>
           <tbody id="caseTbody">
-            <tr><td colspan="6" class="empty-msg">데이터가 없어요</td></tr>
+            <tr><td colspan="7" class="empty-msg">데이터가 없어요</td></tr>
           </tbody>
         </table>
       </div>
@@ -308,6 +310,10 @@
           <input type="date" id="formApplyDate">
         </div>
         <div class="form-row">
+          <label>비고</label>
+          <textarea id="formRemark" rows="2" placeholder="메모"></textarea>
+        </div>
+        <div class="form-row">
           <label>종료일자</label>
           <input type="date" id="formCloseDate">
         </div>
@@ -325,7 +331,7 @@
   /*
     엑셀 업로드 방식입니다. 파일 안에 시트 2개가 있어야 해요.
 
-    [시트1 "사건"] 채권자 | 사건번호 | 회사명 | 사업자등록번호 | 대표자명 | 금액 | 상태 | 신청일자 | 종료일자
+    [시트1 "사건"] 채권자 | 사건번호 | 회사명 | 사업자등록번호 | 대표자명 | 금액 | 상태 | 신청일자 | 비고 | 종료일자
     [시트2 "진행경과"] 사건번호 | 경과일자 | 상태 | 내용
 
     - "사건번호"는 같은 파일 안에서만 겹치지 않으면 됩니다 (회사가 다르면 같은 번호를 써도 괜찮아요).
@@ -472,6 +478,7 @@
       amount: toNumber(row['금액']),
       status: String(row['상태'] ?? '신청').trim() || '신청',
       apply_date: excelDateToStr(row['신청일자']),
+      remark: String(row['비고'] ?? '').trim(),
       close_date: excelDateToStr(row['종료일자'])
     };
   }
@@ -522,9 +529,26 @@
 
         const payload = { cases: allCases, progress: allProgress, updatedAt: new Date().toISOString() };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-
         updateLastUpdatedLabel(payload.updatedAt);
-        hideStatus();
+
+        // 업로드 내용 검증: 금액이 죄다 0원이거나, 상태값이 신청/진행중/종료가 아닌 경우 경고
+        const zeroAmountCount = newCases.filter(c => c.amount === 0).length;
+        const unknownStatuses = [...new Set(newCases.filter(c => !['신청', '진행중', '종료'].includes(c.status)).map(c => c.status))];
+        const warnings = [];
+        if (zeroAmountCount === newCases.length) {
+          warnings.push('금액이 전부 0원으로 들어왔어요. 엑셀의 금액 열 이름이 정확히 "금액"인지 확인해 주세요.');
+        } else if (zeroAmountCount > 0) {
+          warnings.push(`${zeroAmountCount}건은 금액이 0원으로 들어왔어요. 해당 행의 금액 값을 확인해 주세요.`);
+        }
+        if (unknownStatuses.length) {
+          warnings.push(`"${escapeHtml(unknownStatuses.join(', '))}" 상태는 신청/진행중/종료 중 하나가 아니에요. 값은 저장되지만 집계·필터에 정확히 반영되지 않을 수 있어요.`);
+        }
+
+        if (warnings.length) {
+          showStatus(`⚠️ 업로드는 됐지만 확인이 필요해요.<br>${warnings.join('<br>')}`);
+        } else {
+          hideStatus();
+        }
         showCompanies();
         renderCompanies();
       } catch (err) {
@@ -562,9 +586,9 @@
   }
 
   function downloadTemplate() {
-    const caseHeaders = ['채권자', '사건번호', '회사명', '사업자등록번호', '대표자명', '금액', '상태', '신청일자', '종료일자'];
+    const caseHeaders = ['채권자', '사건번호', '회사명', '사업자등록번호', '대표자명', '금액', '상태', '신청일자', '비고', '종료일자'];
     const caseSample = [
-      ['대상국제교역', '1', '(주)한빛물산', '123-45-67890', '김한빛', 15000000, '진행중', '2026-03-05', '']
+      ['대상국제교역', '1', '(주)한빛물산', '123-45-67890', '김한빛', 15000000, '진행중', '2026-03-05', '1차 내용증명 발송 완료', '']
     ];
     const progHeaders = ['사건번호', '경과일자', '상태', '내용'];
     const progSample = [
@@ -628,6 +652,7 @@
     document.getElementById('formAmount').value = '';
     document.getElementById('formStatus').value = '신청';
     document.getElementById('formApplyDate').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('formRemark').value = '';
     document.getElementById('formCloseDate').value = '';
     document.getElementById('addCaseModal').style.display = 'flex';
   }
@@ -646,6 +671,7 @@
     document.getElementById('formAmount').value = c.amount || '';
     document.getElementById('formStatus').value = c.status;
     document.getElementById('formApplyDate').value = c.apply_date || '';
+    document.getElementById('formRemark').value = c.remark || '';
     document.getElementById('formCloseDate').value = c.close_date || '';
     document.getElementById('addCaseModal').style.display = 'flex';
   }
@@ -663,6 +689,7 @@
     const status = document.getElementById('formStatus').value;
     const applyDate = document.getElementById('formApplyDate').value || new Date().toISOString().slice(0, 10);
     const closeDate = document.getElementById('formCloseDate').value || '';
+    const remark = document.getElementById('formRemark').value.trim();
     const bizNo = document.getElementById('formBizNo').value.trim();
     const rep = document.getElementById('formRep').value.trim();
     const today = new Date().toISOString().slice(0, 10);
@@ -678,6 +705,7 @@
         amount: amount,
         status: status,
         apply_date: applyDate,
+        remark: remark,
         close_date: closeDate
       };
       allProgress.push({
@@ -697,6 +725,7 @@
         amount: amount,
         status: status,
         apply_date: applyDate,
+        remark: remark,
         close_date: closeDate
       };
       allCases.push(newCase);
@@ -807,12 +836,21 @@
   }
 
   function renderCaseTable() {
+    const thead = document.getElementById('caseThead');
     const tbody = document.getElementById('caseTbody');
     let rows = allCases.filter(c => c.creditor_company === currentCompany);
     if (currentFilter !== '전체') rows = rows.filter(c => c.status === currentFilter);
 
+    const showClose = currentFilter === '종료';
+    thead.innerHTML = `<tr>
+      <th>회사명</th><th>사업자등록번호</th><th>대표자명</th><th>금액</th><th>상태</th><th>신청일자</th>
+      ${showClose ? '<th>종료일자</th>' : ''}
+      <th>비고</th>
+    </tr>`;
+    const colCount = showClose ? 8 : 7;
+
     if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="6">${emptyMsg('해당 데이터가 없어요')}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${colCount}">${emptyMsg('해당 데이터가 없어요')}</td></tr>`;
       return;
     }
 
@@ -824,6 +862,8 @@
         <td>${fmtWon(c.amount)}</td>
         <td>${buildStatusSelect(c)}</td>
         <td>${escapeHtml(c.apply_date || '-')}</td>
+        ${showClose ? `<td>${escapeHtml(c.close_date || '-')}</td>` : ''}
+        <td class="td-remark">${escapeHtml(c.remark || '-')}</td>
       </tr>`).join('');
   }
 
@@ -845,6 +885,7 @@
       <div><div class="info-label">채권 금액</div><div class="info-value">${fmtWon(c.amount)}</div></div>
       <div><div class="info-label">상태</div><div class="info-value">${buildStatusSelect(c)}</div></div>
       <div><div class="info-label">신청일자</div><div class="info-value">${escapeHtml(c.apply_date || '-')}</div></div>
+      <div style="grid-column:1/-1;"><div class="info-label">비고</div><div class="info-value" style="font-size:13.5px;white-space:pre-wrap;">${escapeHtml(c.remark || '-')}</div></div>
       ${c.close_date ? `<div><div class="info-label">종료일자</div><div class="info-value">${escapeHtml(c.close_date)}</div></div>` : ''}
     `;
 

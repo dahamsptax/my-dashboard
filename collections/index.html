@@ -218,7 +218,10 @@
         <a class="back-link" onclick="showCompanies()">← 회사 목록</a>
         <div class="view-title" id="caseListTitle">-</div>
       </div>
-      <button class="btn-primary" onclick="openAddCaseModal()">+ 새 사건 추가</button>
+      <div class="toolbar-actions">
+        <button class="btn-secondary" onclick="deleteCompany(currentCompany, {goToOverview:true})">이 회사 초기화</button>
+        <button class="btn-primary" onclick="openAddCaseModal()">+ 새 사건 추가</button>
+      </div>
     </div>
     <div class="company-stat-row" id="caseListSummary" style="margin-bottom:18px;"></div>
     <div class="filter-tabs">
@@ -248,7 +251,10 @@
         <a class="back-link" onclick="showCases(currentCompany)">← <span id="caseDetailBackLabel">목록</span></a>
         <div class="view-title" id="caseDetailTitle">-</div>
       </div>
-      <button class="btn-secondary" onclick="deleteCase(currentCaseNo)">사건 삭제</button>
+      <div class="toolbar-actions">
+        <button class="btn-secondary" onclick="openEditCaseModal(currentCaseNo)">수정</button>
+        <button class="btn-secondary" onclick="deleteCase(currentCaseNo)">사건 삭제</button>
+      </div>
     </div>
     <div class="panel" style="margin-bottom:20px;">
       <div class="case-info-grid" id="caseInfoGrid"></div>
@@ -265,7 +271,7 @@
   <div id="addCaseModal" class="modal-overlay" style="display:none" onclick="if(event.target===this) closeAddCaseModal()">
     <div class="modal-box">
       <div class="modal-header">
-        <div class="modal-title">새 사건 추가</div>
+        <div class="modal-title" id="modalTitle">새 사건 추가</div>
         <button class="icon-btn" onclick="closeAddCaseModal()">✕</button>
       </div>
       <div class="modal-body">
@@ -301,10 +307,14 @@
           <label>신청일자</label>
           <input type="date" id="formApplyDate">
         </div>
+        <div class="form-row">
+          <label>종료일자</label>
+          <input type="date" id="formCloseDate">
+        </div>
       </div>
       <div class="modal-footer">
         <button class="btn-secondary" onclick="closeAddCaseModal()">취소</button>
-        <button class="btn-primary" onclick="submitAddCase()">추가</button>
+        <button class="btn-primary" id="modalSubmitBtn" onclick="submitCaseForm()">추가</button>
       </div>
     </div>
   </div>
@@ -334,6 +344,8 @@
   let currentCompany = null;
   let currentCaseNo = null;
   let currentFilter = '전체';
+  let modalMode = 'add';
+  let modalEditingCaseNo = null;
 
   /* ---------- 유틸 ---------- */
   const fmtWon = (n) => '₩' + Math.round(n || 0).toLocaleString('ko-KR');
@@ -578,13 +590,14 @@
     renderCompanies();
   }
 
-  function deleteCompany(name) {
+  function deleteCompany(name, opts) {
     if (!confirm(`"${name}" 데이터를 전부 삭제할까요?`)) return;
     allCases = allCases.filter(c => c.creditor_company !== name);
     allProgress = allProgress.filter(p => p.creditor_company !== name);
     const payload = { cases: allCases, progress: allProgress, updatedAt: new Date().toISOString() };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     updateLastUpdatedLabel(payload.updatedAt);
+    if (opts && opts.goToOverview) showCompanies();
     renderCompanies();
   }
 
@@ -604,6 +617,10 @@
   }
 
   function openAddCaseModal() {
+    modalMode = 'add';
+    modalEditingCaseNo = null;
+    document.getElementById('modalTitle').textContent = '새 사건 추가';
+    document.getElementById('modalSubmitBtn').textContent = '추가';
     document.getElementById('formCreditor').value = currentCompany;
     document.getElementById('formCompanyName').value = '';
     document.getElementById('formBizNo').value = '';
@@ -611,12 +628,33 @@
     document.getElementById('formAmount').value = '';
     document.getElementById('formStatus').value = '신청';
     document.getElementById('formApplyDate').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('formCloseDate').value = '';
     document.getElementById('addCaseModal').style.display = 'flex';
   }
+
+  function openEditCaseModal(caseNo) {
+    const c = allCases.find(x => x.case_no === caseNo && x.creditor_company === currentCompany);
+    if (!c) return;
+    modalMode = 'edit';
+    modalEditingCaseNo = caseNo;
+    document.getElementById('modalTitle').textContent = '사건 정보 수정';
+    document.getElementById('modalSubmitBtn').textContent = '저장';
+    document.getElementById('formCreditor').value = c.creditor_company;
+    document.getElementById('formCompanyName').value = c.company_name;
+    document.getElementById('formBizNo').value = c.business_reg_no || '';
+    document.getElementById('formRep').value = c.representative_name || '';
+    document.getElementById('formAmount').value = c.amount || '';
+    document.getElementById('formStatus').value = c.status;
+    document.getElementById('formApplyDate').value = c.apply_date || '';
+    document.getElementById('formCloseDate').value = c.close_date || '';
+    document.getElementById('addCaseModal').style.display = 'flex';
+  }
+
   function closeAddCaseModal() {
     document.getElementById('addCaseModal').style.display = 'none';
   }
-  function submitAddCase() {
+
+  function submitCaseForm() {
     const companyName = document.getElementById('formCompanyName').value.trim();
     const amount = toNumber(document.getElementById('formAmount').value);
     if (!companyName) { alert('회사명을 입력해주세요.'); return; }
@@ -624,35 +662,66 @@
 
     const status = document.getElementById('formStatus').value;
     const applyDate = document.getElementById('formApplyDate').value || new Date().toISOString().slice(0, 10);
+    const closeDate = document.getElementById('formCloseDate').value || '';
+    const bizNo = document.getElementById('formBizNo').value.trim();
+    const rep = document.getElementById('formRep').value.trim();
+    const today = new Date().toISOString().slice(0, 10);
 
-    const newCase = {
-      creditor_company: currentCompany,
-      case_no: generateCaseNo(),
-      company_name: companyName,
-      business_reg_no: document.getElementById('formBizNo').value.trim(),
-      representative_name: document.getElementById('formRep').value.trim(),
-      amount: amount,
-      status: status,
-      apply_date: applyDate,
-      close_date: status === '종료' ? new Date().toISOString().slice(0, 10) : ''
-    };
-
-    allCases.push(newCase);
-    allProgress.push({
-      case_no: newCase.case_no,
-      creditor_company: currentCompany,
-      progress_date: applyDate,
-      status: status,
-      note: '채권추심 신청 접수'
-    });
+    if (modalMode === 'edit') {
+      const idx = allCases.findIndex(x => x.case_no === modalEditingCaseNo && x.creditor_company === currentCompany);
+      if (idx === -1) return;
+      allCases[idx] = {
+        ...allCases[idx],
+        company_name: companyName,
+        business_reg_no: bizNo,
+        representative_name: rep,
+        amount: amount,
+        status: status,
+        apply_date: applyDate,
+        close_date: closeDate
+      };
+      allProgress.push({
+        case_no: modalEditingCaseNo,
+        creditor_company: currentCompany,
+        progress_date: today,
+        status: status,
+        note: '사건 정보 수정'
+      });
+    } else {
+      const newCase = {
+        creditor_company: currentCompany,
+        case_no: generateCaseNo(),
+        company_name: companyName,
+        business_reg_no: bizNo,
+        representative_name: rep,
+        amount: amount,
+        status: status,
+        apply_date: applyDate,
+        close_date: closeDate
+      };
+      allCases.push(newCase);
+      allProgress.push({
+        case_no: newCase.case_no,
+        creditor_company: currentCompany,
+        progress_date: applyDate,
+        status: status,
+        note: '채권추심 신청 접수'
+      });
+    }
 
     const payload = { cases: allCases, progress: allProgress, updatedAt: new Date().toISOString() };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     updateLastUpdatedLabel(payload.updatedAt);
 
+    const editedCaseNo = modalEditingCaseNo;
     closeAddCaseModal();
-    renderCaseListHeader();
-    renderCaseTable();
+
+    if (modalMode === 'edit' && document.getElementById('viewCaseDetail').style.display !== 'none') {
+      showCaseDetail(editedCaseNo);
+    } else {
+      renderCaseListHeader();
+      renderCaseTable();
+    }
   }
 
   /* ---------- 화면 전환 ---------- */

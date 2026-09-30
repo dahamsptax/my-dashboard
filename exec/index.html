@@ -155,6 +155,25 @@
 
   .empty-note{color:var(--text-muted); font-size:12.5px; padding:20px 4px;}
 
+  /* 회사별 미수현황 */
+  .recv-head{display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap;}
+  .recv-link{font-size:12.5px; font-weight:600; color:var(--text-secondary); text-decoration:none;}
+  .recv-link:hover{color:var(--text-primary); text-decoration:underline;}
+  .recv-list{display:flex; flex-direction:column; gap:16px;}
+  .recv-row{display:grid; grid-template-columns:130px minmax(0,1fr); gap:6px 16px; align-items:center;}
+  .recv-name{font-size:13.5px; font-weight:700;}
+  .recv-track{position:relative; height:12px; border-radius:999px; background:var(--gray-track); overflow:hidden;}
+  .recv-total{position:absolute; left:0; top:0; height:100%; border-radius:999px; background:#d6d4cc;}
+  .recv-bad{position:absolute; left:0; top:0; height:100%; border-radius:999px 0 0 999px; background:var(--c-marketing);}
+  .recv-meta{grid-column:2; display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12px; color:var(--text-secondary); font-variant-numeric:tabular-nums;}
+  .recv-meta b{color:var(--text-primary);}
+  .recv-legend{display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px; font-size:12px; color:var(--text-secondary); font-weight:600;}
+  .recv-legend span{display:inline-flex; align-items:center; gap:6px;}
+  .recv-legend i{width:10px; height:10px; border-radius:3px; display:inline-block;}
+  .up-bad{color:var(--status-red); font-weight:700;}
+  .down-good{color:var(--status-green); font-weight:700;}
+  @media (max-width:560px){ .recv-row{grid-template-columns:1fr;} .recv-meta{grid-column:1;} }
+
   .skeleton{
     background:linear-gradient(90deg, var(--gray-chip) 25%, #f6f5f2 37%, var(--gray-chip) 63%);
     background-size:400% 100%; animation:shimmer 1.4s ease infinite;
@@ -209,7 +228,7 @@
     </div>
     <div class="card area-card">
       <div class="area-band" style="background:var(--c-marketing)"></div>
-      <div class="area-label">채권추심</div>
+      <div class="area-label">채권 (전체미수)</div>
       <div class="area-value skeleton" id="collectionValue">&nbsp;</div>
       <div class="area-sub" id="collectionSub">불러오는 중</div>
       <div class="status-row" id="collectionStatus"></div>
@@ -255,6 +274,17 @@
     </div>
   </div>
 
+  <!-- 회사별 미수현황 (receivable_monthly) -->
+  <div class="card" style="margin-bottom:14px;">
+    <div class="recv-head">
+      <p class="panel-title">회사별 미수현황</p>
+      <a class="recv-link" href="/collections">채권 대시보드에서 자세히 보기 →</a>
+    </div>
+    <p class="panel-sub" id="recvSub">불러오는 중</p>
+    <div class="recv-legend"><span><i style="background:var(--c-marketing)"></i>악성미수 (출고정지·해지요청·유지·추심요청)</span><span><i style="background:#d6d4cc"></i>그 외 미수</span></div>
+    <div class="recv-list" id="recvList"><div class="skeleton" style="height:14px;"></div></div>
+  </div>
+
   <!-- 6개월 종합 추이 -->
   <div class="card">
     <p class="panel-title">6개월 종합 추이</p>
@@ -266,7 +296,7 @@
   </div>
 </div>
 
-<footer>이 화면은 5개 상세 대시보드(매출·채권추심·고객·손익·인사)의 핵심 숫자만 모아 30초 안에 상태를 파악하는 용도입니다. 자세한 숫자는 각 대시보드에서 확인하세요.</footer>
+<footer>이 화면은 5개 상세 대시보드(매출·채권·고객·손익·인사)의 핵심 숫자만 모아 30초 안에 상태를 파악하는 용도입니다. 자세한 숫자는 각 대시보드에서 확인하세요.</footer>
 
 <!-- ============================================================
      Supabase 연결 (요청하신 방식 그대로 — type="module" 사용 안 함)
@@ -291,6 +321,9 @@
                          → 매출 카드(revenue, 목표는 최신 행의 target) + 고객 카드(total_customers)
      collection_case   : creditor_company, case_no, amount(원), status, apply_date, close_date
                          → 채권추심 카드·변화·추이. status가 '신청'/'진행중'이 아니면(종료, 진행종료 등) 종료로 봄
+     receivable_monthly: company, base_date, total(원), by_cat{출고정지·해지요청·유지·추심요청:{amt(원),n}}, checks.has_category
+                         → 채권 카드(전체미수·악성미수)·이번 달 변화·회사별 미수현황. 회사별 최신 기준월과 그 직전 기준월을 비교
+                         (비고·처리결과가 없는 옛 양식 월은 has_category=false → 악성미수 비교 제외)
      pl_summary       : sort_order, month, revenue, cogs, sga, other_cost
                          → 영업이익·영업이익률, 6개월 추이의 매출
      hr_monthly        : sort_order, month, headcount, payroll, joined, left_count, revenue
@@ -405,6 +438,9 @@
       if(hrRes.error) throw hrRes.error;
       var targetRes = await db.from("exec_target").select("*");
       if(targetRes.error) throw targetRes.error;
+      // 미수현황은 없어도 나머지 화면은 보이도록 오류를 따로 처리
+      var recvRes = await db.from("receivable_monthly").select("company,base_date,total,by_cat,has_cat:checks->has_category");
+      var recv = recvSummary(recvRes.error ? [] : (recvRes.data || []));
 
       var salesMonthly = salesRes.data || [];
       var cases = caseRes.data || [];
@@ -447,11 +483,13 @@
       var metaParts = [];
       if(salesMonth && salesMonth !== monthLabel){ metaParts.push("매출 " + salesMonth); }
       if(collMonth && collMonth !== monthLabel){ metaParts.push("채권추심 " + collMonth); }
+      if(recv && recv.monthLabel !== monthLabel){ metaParts.push("미수 " + recv.monthLabel); }
       setPageMetaLoaded(metaParts.length ? metaParts.join(" · ") + " · 그 외 " + monthLabel : monthLabel);
 
-      renderCardsAndStatus(salesMonthly, cases, customer, pl, hr, targets);
+      renderCardsAndStatus(salesMonthly, cases, customer, pl, hr, targets, recv);
       renderAchievement(salesMonthly, cases, customer, pl, hr, targets);
-      renderTopChanges(salesMonthly, cases, customer, pl, hr);
+      renderTopChanges(salesMonthly, cases, customer, pl, hr, recv);
+      renderReceivables(recv, recvRes.error);
       renderTrend(pl, cases); // 추이는 세 지표가 같은 축을 쓰도록 손익 기준 매출 사용
     } catch(err){
       showError(err);
@@ -516,13 +554,56 @@
     });
     return sum / 10000;
   }
+  // ---------- 미수현황 (receivable_monthly, 금액 원 → 만원) ----------
+  var RECV_CATS = ["출고정지", "해지요청", "유지", "추심요청"];
+  var RECV_ORDER = ["대상국제교역", "(주)디아이화스너", "픽스글로벌"];
+  function recvBad(r){
+    return RECV_CATS.reduce(function(a, k){ return a + num(r.by_cat && r.by_cat[k] && r.by_cat[k].amt); }, 0);
+  }
+  function recvSummary(rows){
+    if(!rows.length) return null;
+    var latest = rows.reduce(function(a, r){ return r.base_date > a ? r.base_date : a; }, "");
+    var cur = rows.filter(function(r){ return r.base_date === latest; });
+    cur.sort(function(a, b){
+      var ia = RECV_ORDER.indexOf(a.company), ib = RECV_ORDER.indexOf(b.company);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+    var companies = cur.map(function(r){
+      var prev = rows.filter(function(p){ return p.company === r.company && p.base_date < latest; })
+        .sort(function(a, b){ return a.base_date < b.base_date ? 1 : -1; })[0] || null;
+      return {
+        name:r.company,
+        total:num(r.total) / 10000,
+        bad:recvBad(r) / 10000,
+        hasCat:r.has_cat !== false,
+        prevTotal:prev ? num(prev.total) / 10000 : null,
+        prevBad:prev && prev.has_cat !== false ? recvBad(prev) / 10000 : null
+      };
+    });
+    function sum(key){ return companies.reduce(function(a, c){ return a + (c[key] || 0); }, 0); }
+    var allPrev = companies.every(function(c){ return c.prevTotal !== null; });
+    var allPrevCat = companies.every(function(c){ return c.prevBad !== null; });
+    var hasCat = companies.every(function(c){ return c.hasCat; });
+    return {
+      date:latest, monthLabel:Number(latest.slice(5, 7)) + "월", companies:companies, hasCat:hasCat,
+      total:sum("total"), bad:hasCat ? sum("bad") : null,
+      prevTotal:allPrev ? sum("prevTotal") : null,
+      prevBad:allPrevCat && hasCat ? sum("prevBad") : null
+    };
+  }
+  function recvChangeHtml(now, prev){
+    if(prev === null || prev === undefined || !prev) return "";
+    var pct = (now - prev) / prev * 100;
+    return "<span class=\"" + (pct > 0 ? "up-bad" : "down-good") + "\">" + (pct > 0 ? "▲ " : "▼ ") + fmtSignedPct(pct) + "</span>";
+  }
+
   function customerMetrics(row){
     if(!row) return null;
     return { total:num(row.total_customers) };
   }
 
   // ---------- 카드 + 신호등 ----------
-  function renderCardsAndStatus(sales, cases, customer, pl, hr, targets){
+  function renderCardsAndStatus(sales, cases, customer, pl, hr, targets, recv){
     // 매출
     var salesNow = last(sales), salesPrev = prevOf(sales);
     var salesNowVal = num(salesNow && salesNow.revenue);
@@ -533,11 +614,23 @@
     $("salesSub").textContent = salesChangePct !== null ? "전월 대비 " + fmtSignedPct(salesChangePct) : "전월 데이터 없음";
     renderStatus("salesStatus", achvHigher(salesNowVal, targets.sales), targets.sales);
 
-    // 채권추심 (진행 중 채권 금액 — 목표 미설정)
+    // 채권 (전체미수 · 악성미수 · 채권추심 진행 — 목표 미설정)
     var coNow = collectionMetrics(cases);
     var coEl = $("collectionValue"); coEl.classList.remove("skeleton");
-    coEl.textContent = coNow ? fmtManwon(coNow.activeAmount) : "-";
-    $("collectionSub").textContent = coNow ? "진행 " + fmtNum(coNow.activeCount) + "건 · 종료 " + fmtNum(coNow.closedCount) + "건" : "데이터 없음";
+    var coLines = [];
+    if(recv){
+      coEl.textContent = fmtManwon(recv.total);
+      coLines.push(recv.monthLabel + " 기준" + (recv.prevTotal !== null ? " · 전월 대비 " + recvChangeHtml(recv.total, recv.prevTotal) : ""));
+      if(recv.bad !== null){
+        coLines.push("악성 " + fmtManwon(recv.bad) + " (" + fmtPct(recv.total ? recv.bad / recv.total * 100 : 0, 1) + ")" +
+          (recv.prevBad !== null ? " " + recvChangeHtml(recv.bad, recv.prevBad) : ""));
+      }
+    } else {
+      coEl.textContent = "-";
+      coLines.push("미수 데이터 없음");
+    }
+    if(coNow){ coLines.push("추심 진행 " + fmtManwon(coNow.activeAmount) + " · " + fmtNum(coNow.activeCount) + "건"); }
+    $("collectionSub").innerHTML = coLines.join("<br>");
     renderStatus("collectionStatus", null, targets.collection);
 
     // 고객 (총 고객 수 — 목표 미설정)
@@ -577,7 +670,7 @@
     // rate: 달성률(%). 목표가 없거나 데이터가 없으면 null
     var rows = [
       { name:"매출", color:"var(--c-sales)", rate: achvHigher(salesNowVal, targets.sales) },
-      { name:"채권추심", color:"var(--c-marketing)", rate: null },
+      { name:"채권", color:"var(--c-marketing)", rate: null },
       { name:"고객", color:"var(--c-customer)", rate: null },
       { name:"영업이익", color:"var(--c-profit)", rate: plNow ? achvHigher(plNow.operatingProfit, targets.profit) : null },
       { name:"인건비율 (낮을수록 좋음)", color:"var(--c-people)", rate: hrNow ? achvLower(hrNow.payrollRatio, targets.payroll) : null }
@@ -614,7 +707,7 @@
     return Math.abs((now - prevVal) / prevVal) * 100;
   }
 
-  function renderTopChanges(sales, cases, customer, pl, hr){
+  function renderTopChanges(sales, cases, customer, pl, hr, recv){
     var list = $("changeList");
     list.innerHTML = "";
 
@@ -646,6 +739,24 @@
           value: fmtSignedPct(coChange)
         });
       }
+    }
+
+    // 미수: 전월 대비 % (줄어드는 것이 좋음)
+    if(recv && recv.prevTotal){
+      var rvChange = (recv.total - recv.prevTotal) / recv.prevTotal * 100;
+      candidates.push({
+        name:"전체 미수", score:relScore(recv.total, recv.prevTotal), good: rvChange <= 0,
+        desc:"3사 미수 잔액이 전월보다 " + (rvChange <= 0 ? "줄었어요" : "늘었어요") + " (" + fmtManwon(recv.total) + ")",
+        value: fmtSignedPct(rvChange)
+      });
+    }
+    if(recv && recv.prevBad){
+      var rbChange = (recv.bad - recv.prevBad) / recv.prevBad * 100;
+      candidates.push({
+        name:"악성 미수", score:relScore(recv.bad, recv.prevBad), good: rbChange <= 0,
+        desc:"출고정지·해지·유지·추심 대상 미수가 전월보다 " + (rbChange <= 0 ? "줄었어요" : "늘었어요") + " (" + fmtManwon(recv.bad) + ")",
+        value: fmtSignedPct(rbChange)
+      });
     }
 
     // 고객 수: 전월 대비 % (증가가 좋음)
@@ -698,6 +809,32 @@
         "<div class=\"change-val " + (c.good ? "good" : "bad") + "\">" + c.value + "</div>";
       list.appendChild(row);
     });
+  }
+
+  // ---------- 회사별 미수현황 ----------
+  function renderReceivables(recv, err){
+    var list = $("recvList");
+    if(!recv){
+      $("recvSub").textContent = err ? "미수현황을 불러오지 못했어요" : "아직 올린 미수 파일이 없어요";
+      list.innerHTML = "<div class=\"empty-note\">채권 대시보드에서 매월 미회수 파일을 올리면 여기에 표시됩니다.</div>";
+      return;
+    }
+    $("recvSub").textContent = "기준일 " + recv.date + " · 막대 길이는 전체미수(같은 축)" +
+      (recv.hasCat ? "" : " · 이 달 파일엔 악성 구분이 없어요");
+    var max = Math.max.apply(null, recv.companies.map(function(c){ return c.total; }).concat([1]));
+    list.innerHTML = recv.companies.map(function(c){
+      var badTxt = c.hasCat
+        ? "<span>악성 <b>" + fmtManwon(c.bad) + "</b> (" + fmtPct(c.total ? c.bad / c.total * 100 : 0, 1) + ")" +
+          (c.prevBad !== null ? " " + recvChangeHtml(c.bad, c.prevBad) : "") + "</span>"
+        : "<span>악성 구분 없음</span>";
+      return "<div class=\"recv-row\">" +
+        "<div class=\"recv-name\">" + c.name + "</div>" +
+        "<div class=\"recv-track\"><div class=\"recv-total\" style=\"width:" + (c.total / max * 100) + "%\"></div>" +
+          (c.hasCat ? "<div class=\"recv-bad\" style=\"width:" + (Math.max(0, c.bad) / max * 100) + "%\"></div>" : "") + "</div>" +
+        "<div class=\"recv-meta\"><span>전체 <b>" + fmtManwon(c.total) + "</b>" +
+          (c.prevTotal !== null ? " " + recvChangeHtml(c.total, c.prevTotal) : "") + "</span>" + badTxt + "</div>" +
+      "</div>";
+    }).join("");
   }
 
   // ---------- 6개월 종합 추이 ----------

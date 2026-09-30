@@ -29,25 +29,52 @@
     -webkit-font-smoothing: antialiased;
   }
   .page { max-width: 1280px; margin: 0 auto; padding: 32px 24px 60px; }
-  .topnav { margin-bottom: 16px; }
-  .topnav a {
-    color: var(--color-text-muted); text-decoration: none;
-    font-size: 13px; font-weight: 600;
+  .hub-link {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12.5px; font-weight: 600; color: var(--color-text-muted);
+    text-decoration: none; margin-bottom: 20px;
   }
-  .topnav a:hover { color: var(--color-text); }
-  .page-header {
-    display: flex; justify-content: space-between; align-items: flex-end;
-    gap: 16px; flex-wrap: wrap; margin-bottom: 28px;
+  .hub-link:hover { color: var(--color-primary); }
+  /* 상단 툴바 (인사 대시보드와 동일 구성) */
+  .toolbar {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    margin-bottom: 24px; padding: 14px 18px; background: #F2F3F5; border-radius: 12px;
   }
-  h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 4px; }
-  .subtitle { font-size: 13px; color: var(--color-text-muted); margin: 0; }
-  .refresh-btn {
-    border: 1px solid var(--color-border); background: #fff; color: var(--color-primary);
-    font-weight: 600; font-size: 13px; padding: 9px 18px; border-radius: 999px;
-    cursor: pointer; transition: background .15s ease; font-family: inherit;
+  .toolbar-info { font-size: 12.5px; color: var(--color-text-muted); font-weight: 600; }
+  .toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn-primary, .btn-secondary {
+    font-family: inherit; font-size: 12.5px; font-weight: 700; padding: 9px 16px; border-radius: 999px;
+    cursor: pointer; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 6px;
+    text-decoration: none;
   }
-  .refresh-btn:hover { background: var(--color-primary-soft); }
-  .refresh-btn:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+  .btn-primary { background: var(--color-primary); color: #fff; }
+  .btn-primary:hover { background: var(--color-primary-dark); }
+  .btn-secondary { background: #fff; color: var(--color-text); border-color: var(--color-border); }
+  .btn-secondary:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .page-header { margin-bottom: 28px; }
+  h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+  .subtitle { font-size: 13px; color: var(--color-text-muted); margin: 6px 0 0; }
+  /* 회사 선택 + 기준월 */
+  .scope-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: -12px 0 24px; }
+  .base-month { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .base-month[hidden] { display: none; }
+  .base-month-label { font-size: 12.5px; font-weight: 700; color: var(--color-text-muted); margin-right: 2px; }
+  .nav-btn {
+    font-family: inherit; font-size: 13px; font-weight: 700; width: 32px; height: 32px; border-radius: 999px;
+    cursor: pointer; border: 1px solid var(--color-border); background: #fff; color: var(--color-text); flex: none;
+  }
+  .nav-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .nav-btn:disabled { opacity: .4; cursor: default; }
+  .month-select {
+    font-family: inherit; font-size: 12.5px; font-weight: 700; padding: 6px 10px; border-radius: 999px;
+    border: 1px solid var(--color-primary); background: #fff; color: var(--color-text); height: 32px;
+  }
+  .month-select:focus { outline: none; border-color: var(--color-primary-dark); }
+  .small-btn {
+    font-family: inherit; font-size: 12px; font-weight: 700; padding: 7px 13px; border-radius: 999px;
+    cursor: pointer; border: 1px solid var(--color-border); background: #fff; color: var(--color-text);
+  }
+  .small-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
   .card {
     background: var(--color-surface); border: 1px solid var(--color-border);
     border-radius: var(--radius); box-shadow: var(--shadow-card); padding: 20px 22px;
@@ -100,7 +127,7 @@
   .rank-fill { height: 100%; background: var(--color-primary); border-radius: 999px; }
   .footnote { text-align: center; font-size: 11.5px; color: var(--color-text-muted); margin-top: 24px; }
   .empty { font-size: 13px; color: var(--color-text-muted); }
-  .company-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+  .company-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
   .company-tab {
     border: 1px solid var(--color-border); background: #fff; color: var(--color-text-muted);
     font-weight: 700; font-size: 13px; padding: 8px 16px; border-radius: 999px; cursor: pointer;
@@ -117,7 +144,7 @@
     .rank-grid { grid-template-columns: 1fr; }
     .kpi--main .kpi-value--xl { font-size: 28px; }
     .page { padding: 20px 16px 40px; }
-    .page-header { align-items: flex-start; }
+    .toolbar { flex-direction: column; align-items: flex-start; }
   }
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
@@ -126,18 +153,32 @@
 </head>
 <body>
 <div class="page">
-  <div class="topnav"><a href="/">← 대시보드 허브</a></div>
-  <div class="company-tabs" id="companyTabs"></div>
+  <a class="hub-link" href="/">← 허브로 돌아가기</a>
+
+  <div class="toolbar">
+    <div class="toolbar-info" id="lastUpdated">마지막 업데이트 확인 중...</div>
+    <div class="toolbar-actions">
+      <button id="refreshBtn" class="btn-secondary" type="button">새로고침</button>
+      <a href="/sales/upload/customers/" class="btn-secondary">거래처등록</a>
+      <a href="/sales/upload/" class="btn-primary">엑셀 업로드</a>
+    </div>
+  </div>
+
   <header class="page-header">
-    <div>
-      <h1>영업 대시보드</h1>
-      <p class="subtitle" id="subtitle">데이터를 불러오는 중...</p>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <a href="/sales/upload/" class="refresh-btn" style="text-decoration:none;display:inline-block;">엑셀 업로드</a>
-      <button id="refreshBtn" class="refresh-btn" type="button">새로고침</button>
-    </div>
+    <h1>영업 대시보드</h1>
+    <p class="subtitle" id="subtitle">데이터를 불러오는 중...</p>
   </header>
+
+  <div class="scope-bar">
+    <div class="company-tabs" id="companyTabs"></div>
+    <div class="base-month" id="baseMonthWrap" hidden>
+      <span class="base-month-label">기준월</span>
+      <button class="nav-btn" id="prevMonthBtn" type="button" title="이전 달">&lsaquo;</button>
+      <select class="month-select" id="baseMonthSelect" title="기준월 선택"></select>
+      <button class="nav-btn" id="nextMonthBtn" type="button" title="다음 달">&rsaquo;</button>
+      <button class="small-btn" id="latestMonthBtn" type="button">이번 달</button>
+    </div>
+  </div>
   <main>
     <section class="kpi-grid" id="kpiGrid"></section>
     <section class="charts-grid">
@@ -210,7 +251,7 @@
         selectedCompany = next;
         localStorage.setItem(COMPANY_STORAGE_KEY, selectedCompany);
         renderCompanyTabs();
-        loadDashboard();
+        loadDashboard(true);
       });
     });
   }
@@ -244,70 +285,179 @@
       }))
       .sort((a, b) => a.sort_order - b.sort_order);
   }
-  function aggregatePipelineAll(rows) {
-    const byStage = new Map();
-    rows.forEach((r) => {
-      if (!byStage.has(r.stage)) byStage.set(r.stage, { stage: r.stage, count: 0, sort_order: r.sort_order });
-      const acc = byStage.get(r.stage);
-      acc.count += Number(r.count) || 0;
-      acc.sort_order = Math.min(acc.sort_order, r.sort_order);
-    });
-    return [...byStage.values()].sort((a, b) => a.sort_order - b.sort_order);
+  // ---------- 기준월 선택 ----------
+  // sales_monthly에는 연도 칸이 없어, 거래처×월 데이터(sales_customer_monthly)의 최근 연도를 사용합니다.
+  let dataYear = new Date().getFullYear();
+  let availableMonths = [];   // 선택 가능한 월 번호 목록 (sort_order)
+  let selectedMonthNum = null; // null = 가장 최근 달
+  const ymLabel = (m) => `${dataYear}년 ${m}월`;
+  function baseMonthNum() {
+    if (selectedMonthNum != null && availableMonths.includes(selectedMonthNum)) return selectedMonthNum;
+    return availableMonths.length ? availableMonths[availableMonths.length - 1] : null;
   }
-  // 회사별로 이미 top5씩만 저장돼 있으므로, 그 합집합 중 다시 top5를 뽑으면 전체 top5와 항상 같습니다.
-  function aggregateRankAll(rows) {
-    const gainers = rows.filter((r) => r.kind === 'gainer').sort((a, b) => (b.rate || 0) - (a.rate || 0)).slice(0, 5);
-    const sellers = rows.filter((r) => r.kind === 'seller').sort((a, b) => (b.amount || 0) - (a.amount || 0)).slice(0, 5);
-    return [...gainers, ...sellers];
+  function renderBaseMonthSelect() {
+    const wrap = document.getElementById('baseMonthWrap');
+    const sel = document.getElementById('baseMonthSelect');
+    wrap.hidden = !availableMonths.length;
+    sel.innerHTML = availableMonths.map((m) => `<option value="${m}">${ymLabel(m)}</option>`).join('');
+    const base = baseMonthNum();
+    if (base != null) sel.value = String(base);
+    const i = availableMonths.indexOf(base);
+    document.getElementById('prevMonthBtn').disabled = i <= 0;
+    document.getElementById('nextMonthBtn').disabled = i === -1 || i >= availableMonths.length - 1;
+  }
+  document.getElementById('baseMonthSelect').addEventListener('change', (e) => {
+    selectedMonthNum = Number(e.target.value);
+    loadDashboard();
+  });
+  function shiftBaseMonth(delta) {
+    const i = availableMonths.indexOf(baseMonthNum()) + delta;
+    if (i < 0 || i >= availableMonths.length) return;
+    selectedMonthNum = availableMonths[i];
+    loadDashboard();
+  }
+  document.getElementById('prevMonthBtn').addEventListener('click', () => shiftBaseMonth(-1));
+  document.getElementById('nextMonthBtn').addEventListener('click', () => shiftBaseMonth(1));
+  document.getElementById('latestMonthBtn').addEventListener('click', () => { selectedMonthNum = null; loadDashboard(); });
+
+  function updateLastUpdatedLabel(iso) {
+    const el = document.getElementById('lastUpdated');
+    if (!iso) { el.textContent = '아직 업로드된 데이터가 없어요'; return; }
+    const s = new Date(iso).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    el.textContent = '마지막 업데이트: ' + s;
   }
 
-  async function loadDashboard() {
+  // PostgREST는 한 번에 최대 1000행만 돌려주므로 나눠서 모두 받아옵니다.
+  async function fetchAll(makeQuery) {
+    const out = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await makeQuery().range(from, from + 999);
+      if (error) throw error;
+      out.push(...data);
+      if (data.length < 1000) break;
+    }
+    return out;
+  }
+
+  // 선택한 기준월의 퍼널·상위 거래처를 거래처×월 데이터로 계산합니다
+  // (매출자료 업로드 화면의 계산식과 동일 — 그래서 과거 달을 골라도 그 달 기준으로 볼 수 있습니다).
+  function computeCompanyMonth(rows, prevM, currM, masterCount) {
+    const prev = new Map(), curr = new Map();
+    rows.forEach((r) => {
+      const map = r.month_num === currM ? curr : (r.month_num === prevM ? prev : null);
+      if (!map) return;
+      const amt = Number(r.amount) || 0;
+      if (map.has(r.biz)) map.get(r.biz).amount += amt; else map.set(r.biz, { name: r.name, amount: amt });
+    });
+    const hasPrev = prev.size > 0;
+    const allBiz = new Set([...prev.keys(), ...curr.keys()]);
+    let currSum = 0, activeCount = 0, growCount = 0, newCount = 0;
+    const rates = [], parsed = [];
+    allBiz.forEach((biz) => {
+      const p = prev.get(biz), c = curr.get(biz);
+      const prevAmt = p ? p.amount : 0, currAmt = c ? c.amount : 0;
+      currSum += currAmt;
+      if (currAmt > 0) activeCount++;
+      let rate = null;
+      if (prevAmt > 0) { rate = (currAmt - prevAmt) / prevAmt; rates.push(rate); if (rate > 0) growCount++; }
+      else if (currAmt > 0) newCount++;
+      parsed.push({ name: (c || p).name, prev: prevAmt, curr: currAmt, rate });
+    });
+    const total = masterCount > 0 ? masterCount : allBiz.size;
+    return {
+      currSum,
+      funnel: [total, activeCount, hasPrev ? growCount + newCount : 0],
+      avgRate: hasPrev && rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length * 100 : null,
+      gainers: hasPrev ? parsed.filter((r) => r.rate != null && r.prev >= 500000)
+        .sort((a, b) => b.rate - a.rate).slice(0, 5)
+        .map((r) => ({ kind: 'gainer', name: r.name, amount: Math.round(r.curr / 10000), rate: r.rate * 100 })) : [],
+      sellers: [...parsed].sort((a, b) => b.curr - a.curr).slice(0, 5)
+        .map((r) => ({ kind: 'seller', name: r.name, amount: Math.round(r.curr / 10000), rate: null })),
+    };
+  }
+
+  const FUNNEL_STAGES = ['전체 거래처', '이번달 매출발생', '전월대비 매출증가'];
+
+  async function loadDashboard(resetMonth) {
     const subtitle = document.getElementById('subtitle');
     subtitle.textContent = '데이터를 불러오는 중...';
     const isAll = selectedCompany === '통합';
+    const companies = isAll ? REAL_COMPANIES : [selectedCompany];
+    const scope = (q) => (isAll ? q : q.eq('company', selectedCompany));
+    if (resetMonth) selectedMonthNum = null;
     try {
-      let monthlyQ = db.from('sales_monthly').select('*').order('sort_order', { ascending: true });
-      let pipelineQ = db.from('sales_pipeline').select('*').order('sort_order', { ascending: true });
-      let rankQ = db.from('sales_rank').select('*').order('amount', { ascending: false });
-      if (!isAll) {
-        monthlyQ = monthlyQ.eq('company', selectedCompany);
-        pipelineQ = pipelineQ.eq('company', selectedCompany);
-        rankQ = rankQ.eq('company', selectedCompany);
-      }
-      const [monthlyRes, pipelineRes, rankRes] = await Promise.all([monthlyQ, pipelineQ, rankQ]);
+      const [monthlyRes, yearRes, updCmRes, updCustRes] = await Promise.all([
+        scope(db.from('sales_monthly').select('*')).order('sort_order', { ascending: true }),
+        scope(db.from('sales_customer_monthly').select('year')).order('year', { ascending: false }).limit(1),
+        scope(db.from('sales_customer_monthly').select('updated_at')).order('updated_at', { ascending: false }).limit(1),
+        scope(db.from('sales_customers').select('updated_at')).order('updated_at', { ascending: false }).limit(1),
+      ]);
       if (monthlyRes.error) throw monthlyRes.error;
-      if (pipelineRes.error) throw pipelineRes.error;
-      if (rankRes.error) throw rankRes.error;
+      const stamps = [updCmRes, updCustRes].map((r) => (r.data && r.data[0] ? r.data[0].updated_at : null)).filter(Boolean).sort();
+      updateLastUpdatedLabel(stamps.length ? stamps[stamps.length - 1] : null);
+      if (yearRes.data && yearRes.data[0]) dataYear = yearRes.data[0].year;
+
       let monthly = monthlyRes.data || [];
-      let pipeline = pipelineRes.data || [];
-      let rank = rankRes.data || [];
-      if (isAll) {
-        monthly = aggregateMonthlyAll(monthly);
-        pipeline = aggregatePipelineAll(pipeline);
-        rank = aggregateRankAll(rank);
-      }
-      if (!monthly.length || !pipeline.length) {
-        subtitle.textContent = (isAll ? '통합' : selectedCompany) + ' — 표시할 데이터가 없습니다.';
+      if (isAll) monthly = aggregateMonthlyAll(monthly);
+      availableMonths = monthly.map((m) => m.sort_order);
+      renderBaseMonthSelect();
+      const scopeLabel = isAll ? '통합' : selectedCompany;
+      if (!monthly.length) {
+        subtitle.textContent = scopeLabel + ' · 표시할 데이터가 없습니다.';
         document.getElementById('kpiGrid').innerHTML = '';
+        document.getElementById('monthlyChart').innerHTML = '';
+        document.getElementById('funnelChart').innerHTML = '';
+        renderRank('personRank', [], 'gainer');
+        renderRank('productRank', [], 'seller');
         return;
       }
-      renderKPI(monthly, pipeline);
-      renderMonthlyChart(monthly);
+
+      const base = baseMonthNum();
+      // 기준월까지의 달만 보여주고, 목표가 비어 있는 달은 "전달 매출 × 105%"로 채웁니다.
+      const visible = monthly.filter((m) => m.sort_order <= base).map((m, i, arr) => ({
+        ...m,
+        target: m.target != null ? Number(m.target) : (i > 0 ? Math.round(Number(arr[i - 1].revenue) * 1.05) : null),
+      }));
+
+      // 기준월·전달 거래처별 매출 + 회사별 등록 거래처 수
+      const [cmRows, masterCounts] = await Promise.all([
+        fetchAll(() => scope(db.from('sales_customer_monthly').select('company,biz,name,month_num,amount'))
+          .eq('year', dataYear).in('month_num', [base - 1, base]).order('id', { ascending: true })),
+        Promise.all(companies.map(async (c) => {
+          const { count } = await db.from('sales_customers').select('id', { count: 'exact', head: true }).eq('company', c);
+          return count || 0;
+        })),
+      ]);
+      const results = companies.map((c, i) =>
+        computeCompanyMonth(cmRows.filter((r) => r.company === c), base - 1, base, masterCounts[i]));
+
+      const pipeline = FUNNEL_STAGES.map((stage, i) => ({ stage, count: results.reduce((s, r) => s + r.funnel[i], 0) }));
+      // "전체 거래처"는 그 달 저장 당시 값(③ 객단가와 같은 기준)을 우선 사용합니다.
+      const baseRow = visible[visible.length - 1];
+      if (baseRow.total_customers > 0) pipeline[0].count = Number(baseRow.total_customers);
+      const gainers = results.flatMap((r) => r.gainers).sort((a, b) => b.rate - a.rate).slice(0, 5);
+      const sellers = results.flatMap((r) => r.sellers).sort((a, b) => b.amount - a.amount).slice(0, 5);
+      const rateWeight = results.filter((r) => r.avgRate != null).reduce((s, r) => s + r.currSum, 0);
+      const computedAvgRate = rateWeight > 0
+        ? results.filter((r) => r.avgRate != null).reduce((s, r) => s + r.avgRate * r.currSum, 0) / rateWeight
+        : null;
+
+      renderKPI(visible, pipeline, computedAvgRate);
+      renderMonthlyChart(visible);
       renderFunnel(pipeline);
-      renderRank('personRank', rank.filter(r => r.kind === 'gainer'), 'gainer');
-      renderRank('productRank', rank.filter(r => r.kind === 'seller'), 'seller');
-      const now = new Date();
-      subtitle.textContent = (isAll ? '통합(3개 회사)' : selectedCompany) + ' · 기준월: ' + monthly[monthly.length - 1].month + ' · 마지막 업데이트 ' +
-        now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+      renderRank('personRank', gainers, 'gainer');
+      renderRank('productRank', sellers, 'seller');
+      subtitle.textContent = scopeLabel + ' · 기준월: ' + ymLabel(base);
     } catch (err) {
       console.error(err);
       subtitle.textContent = '데이터를 불러오지 못했습니다: ' + (err.message || String(err));
     }
   }
-  function renderKPI(monthly, pipeline) {
+  function renderKPI(monthly, pipeline, computedAvgRate) {
     const cur = monthly[monthly.length - 1];
-    const achievement = cur.target > 0 ? (cur.revenue / cur.target) * 100 : 0;
-    const remaining = cur.target - cur.revenue;
+    const hasTarget = cur.target != null && cur.target > 0;
+    const achievement = hasTarget ? (cur.revenue / cur.target) * 100 : 0;
+    const remaining = hasTarget ? cur.target - cur.revenue : 0;
     const barWidth = Math.min(Math.max(achievement, 0), 100);
 
     // ③ 객단가: 매출 ÷ 전체 거래처수 (거래처 원장에 계약 건수 개념이 없어 이렇게 대체)
@@ -316,8 +466,11 @@
     const avgDeal = totalCustomers > 0 ? Math.round(cur.revenue / totalCustomers) : 0;
 
     // ④ 매출 평균증감율: 계약 단계 데이터가 없어 거래처별 전월대비 증감율 평균으로 대체
-    const hasGrowthRate = cur.avg_growth_rate != null;
-    const growthRate = hasGrowthRate ? cur.avg_growth_rate : 0;
+    //    저장된 값이 없는 과거 달은 거래처×월 데이터로 계산한 값을 씁니다.
+    const storedRate = cur.avg_growth_rate != null ? Number(cur.avg_growth_rate) : null;
+    const rateValue = storedRate != null ? storedRate : computedAvgRate;
+    const hasGrowthRate = rateValue != null;
+    const growthRate = hasGrowthRate ? rateValue : 0;
     const growthDir = growthRate >= 0 ? 'up' : 'down';
     const growthSign = growthRate >= 0 ? '+' : '';
 
@@ -326,12 +479,12 @@
         <p class="kpi-label">① 이번 달 매출 (${escapeHtml(cur.month)})</p>
         <p class="kpi-value kpi-value--xl">${fmt(cur.revenue)}<span class="unit">만원</span></p>
         <div class="progress-track"><div class="progress-fill" style="width:${barWidth}%"></div></div>
-        <p class="kpi-sub">목표 대비 <strong>${achievement.toFixed(1)}%</strong> 달성</p>
+        <p class="kpi-sub">${hasTarget ? `목표 대비 <strong>${achievement.toFixed(1)}%</strong> 달성` : '비교할 전달 매출이 없어 목표가 없습니다'}</p>
       </div>
       <div class="card kpi">
         <p class="kpi-label">② 이번 달 목표 (전달×105%)</p>
-        <p class="kpi-value">${fmt(cur.target)}<span class="unit">만원</span></p>
-        <p class="kpi-sub">${remaining > 0 ? '남은 금액 ' + fmt(remaining) + '만원' : '목표 초과 +' + fmt(Math.abs(remaining)) + '만원'}</p>
+        <p class="kpi-value">${hasTarget ? fmt(cur.target) + '<span class="unit">만원</span>' : '-'}</p>
+        <p class="kpi-sub">${!hasTarget ? '-' : remaining > 0 ? '남은 금액 ' + fmt(remaining) + '만원' : '목표 초과 +' + fmt(Math.abs(remaining)) + '만원'}</p>
       </div>
       <div class="card kpi">
         <p class="kpi-label">③ 객단가 (매출 ÷ 전체 거래처수)</p>
@@ -340,8 +493,8 @@
       </div>
       <div class="card kpi">
         <p class="kpi-label">④ 매출 평균증감율</p>
-        <p class="kpi-value">${growthSign}${growthRate.toFixed(1)}<span class="unit">%</span></p>
-        <p class="kpi-sub ${growthDir}">거래처별 전월대비 증감율 평균</p>
+        <p class="kpi-value">${hasGrowthRate ? `${growthSign}${growthRate.toFixed(1)}<span class="unit">%</span>` : '-'}</p>
+        <p class="kpi-sub ${hasGrowthRate ? growthDir : ''}">거래처별 전월대비 증감율 평균</p>
       </div>
     `;
   }
@@ -352,7 +505,7 @@
     const plotW = W - marginLeft - marginRight;
     const plotH = H - marginTop - marginBottom;
     const n = monthly.length;
-    const maxVal = Math.max(...monthly.map(m => Math.max(m.revenue, m.target))) * 1.15 || 1;
+    const maxVal = Math.max(...monthly.map(m => Math.max(Number(m.revenue) || 0, Number(m.target) || 0))) * 1.15 || 1;
     const slot = plotW / n;
     const barW = slot * 0.5;
     const yFor = (v) => marginTop + plotH - (v / maxVal) * plotH;
@@ -379,7 +532,8 @@
       `;
       xLabels += `<text x="${x + barW / 2}" y="${H - marginBottom + 20}" text-anchor="middle" class="axis-label ${isCurrent ? 'axis-label--current' : ''}">${escapeHtml(m.month)}</text>`;
     });
-    const targetPoints = monthly.map((m, i) => `${xForCenter(i)},${yFor(m.target)}`).join(' ');
+    // 목표가 없는 달(첫 달)은 목표선에서 빼고 이어 그립니다.
+    const targetPoints = monthly.map((m, i) => (m.target != null ? `${xForCenter(i)},${yFor(m.target)}` : null)).filter(Boolean).join(' ');
     svg.innerHTML = `${gridLines}${bars}<polyline points="${targetPoints}" class="target-line" />${xLabels}`;
   }
   function lerpColor(light, dark, t) {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>채권추심 현황</title>
+<title>채권 현황</title>
 <link rel="stylesheet" as="style" crossorigin
   href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
 <style>
@@ -195,6 +195,77 @@
   .form-row input:focus, .form-row select:focus, .form-row textarea:focus{outline:none;border-color:var(--accent);}
   .modal-footer{display:flex;justify-content:flex-end;gap:8px;padding:16px 20px;border-top:1px solid var(--border);}
 
+
+  /* ---------- 미수현황 ---------- */
+  :root{
+    --cat1:#2a78d6; --cat2:#eb6834; --cat3:#1baf7a; --cat4:#eda100; --cat-normal:#e9e6e1;
+    --warn-bg:#fff7e6; --warn-text:#8a5300; --ok-bg:#ecfdf3; --ok-text:#067647;
+  }
+  .page-section{margin-bottom:44px;}
+  .section-head{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:16px;}
+  .section-head h2{font-size:18px;font-weight:800;letter-spacing:-0.01em;margin:0;}
+  .section-head .header-sub{margin-top:4px;margin-bottom:0;font-size:13px;color:var(--text-muted);}
+  .section-divider{border:none;border-top:1px solid var(--border);margin:0 0 36px;}
+  .ar-select{font-family:inherit;font-size:12.5px;font-weight:700;padding:8px 12px;border-radius:999px;border:1px solid var(--border);background:#fff;color:var(--text);cursor:pointer;}
+  .ar-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px;}
+  .ar-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 18px;}
+  .ar-kpi .stat-label{font-size:11.5px;color:var(--text-muted);font-weight:600;margin-bottom:6px;}
+  .ar-kpi .stat-value{font-size:22px;font-weight:800;letter-spacing:-0.01em;font-variant-numeric:tabular-nums;}
+  .ar-kpi .stat-value small{font-size:13px;font-weight:700;color:var(--text-muted);margin-left:2px;}
+  .ar-kpi .stat-sub{font-size:11.5px;color:var(--text-muted);margin-top:4px;font-variant-numeric:tabular-nums;}
+  @media (max-width:820px){.ar-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .ar-panel{margin-bottom:16px;}
+  .ar-panel-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px 16px;margin-bottom:14px;}
+  .ar-panel-head .section-title{margin:0;}
+  .ar-panel-head p{margin:0;font-size:12px;color:var(--text-muted);}
+  .ar-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:14px;}
+  .ar-legend span{display:inline-flex;align-items:center;gap:6px;}
+  .ar-sw{width:10px;height:10px;border-radius:3px;display:inline-block;}
+  .ar-bars{display:flex;flex-direction:column;gap:18px;}
+  .ar-bar-row{display:grid;grid-template-columns:140px minmax(0,1fr);gap:6px 16px;align-items:center;}
+  .ar-bar-name{font-weight:800;font-size:14px;}
+  .ar-track{height:24px;display:flex;gap:2px;}
+  .ar-seg{height:100%;min-width:0;}
+  .ar-seg:first-child{border-radius:4px 0 0 4px;}
+  .ar-seg:last-child{border-radius:0 4px 4px 0;}
+  .ar-seg:only-child{border-radius:4px;}
+  .ar-bar-meta{grid-column:2;display:flex;flex-wrap:wrap;gap:4px 18px;font-size:12px;color:var(--text-muted);font-variant-numeric:tabular-nums;}
+  .ar-bar-meta b{color:var(--text);}
+  @media (max-width:640px){.ar-bar-row{grid-template-columns:1fr;}.ar-bar-meta{grid-column:1;}}
+  .ar-tip{position:fixed;pointer-events:none;background:#1a1a1a;color:#fff;font-size:12px;padding:8px 10px;border-radius:8px;z-index:200;line-height:1.5;max-width:260px;display:none;}
+  .ar-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .ar-table th{font-size:11.5px;color:var(--text-muted);font-weight:700;text-align:left;padding:0 10px 10px;white-space:nowrap;border-bottom:1px solid var(--border);}
+  .ar-table td{padding:11px 10px;border-bottom:1px solid var(--border-soft);vertical-align:top;}
+  .ar-table .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .ar-table tr.total td{font-weight:800;border-top:1px solid var(--border);border-bottom:none;}
+  .ar-table .cnt{color:var(--text-muted);font-size:11.5px;margin-left:4px;font-weight:600;}
+  .ar-table td.note{min-width:150px;max-width:300px;color:var(--text-muted);white-space:pre-wrap;word-break:keep-all;font-size:12.5px;}
+  .ar-table td.co{white-space:nowrap;}
+  .ar-table td.td-name{min-width:140px;}
+  .ar-scroll{max-height:560px;overflow:auto;}
+  .ar-scroll .ar-table th{position:sticky;top:0;background:#fff;padding-top:4px;}
+  .ar-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;white-space:nowrap;}
+  .ar-pill::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--pc);}
+  .ar-controls{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .ar-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+  .ar-chip{font-family:inherit;font-size:12px;font-weight:700;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:#fff;color:var(--text-muted);cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .ar-chip.active{border-color:var(--text);color:var(--text);background:var(--border-soft);}
+  .ar-search{font-family:inherit;font-size:12.5px;padding:8px 12px;border:1px solid var(--border);border-radius:999px;width:200px;max-width:100%;}
+  .ar-search:focus{outline:none;border-color:var(--accent);}
+  .ar-checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:12px;margin-top:12px;}
+  .ar-check{min-width:0;border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:12.5px;}
+  .ar-check h3{margin:0;font-size:13.5px;font-weight:800;}
+  .ar-check .line{display:flex;justify-content:space-between;gap:12px;min-width:0;}
+  .ar-check .line span{min-width:0;overflow-wrap:anywhere;}
+  .ar-check .line span:first-child{color:var(--text-muted);white-space:nowrap;}
+  .ar-flag{border-radius:8px;padding:6px 10px;font-size:12px;line-height:1.5;}
+  .ar-flag.warn{background:var(--warn-bg);color:var(--warn-text);}
+  .ar-flag.ok{background:var(--ok-bg);color:var(--ok-text);}
+  details.ar-details summary{cursor:pointer;font-size:14px;font-weight:700;}
+  .ar-rule{font-size:12.5px;color:var(--text-muted);line-height:1.7;margin-top:12px;}
+  .ar-rule ol{margin:4px 0 0;padding-left:20px;}
+  .ar-msg{display:none;margin-bottom:16px;padding:12px 16px;border-radius:10px;font-size:13px;line-height:1.6;background:var(--warn-bg);color:var(--warn-text);}
+
   @media (max-width:640px){
     .wrap{padding:24px 14px 48px;}
     .company-stat-row{gap:16px;}
@@ -209,30 +280,58 @@
 <div class="wrap">
   <a class="hub-link" href="/">← 허브로 돌아가기</a>
 
-  <div class="toolbar">
-    <div class="toolbar-info" id="lastUpdated">불러오는 중...</div>
-    <div class="toolbar-actions">
-      <button class="btn-secondary" id="resetAllBtn" onclick="resetAll()">전체 초기화</button>
-      <button class="btn-secondary" onclick="downloadTemplate()">양식 다운로드</button>
-      <label class="btn-primary" for="fileInput" id="uploadLabel">엑셀 업로드</label>
-      <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFile(event)" hidden>
-    </div>
-  </div>
-
-  <!-- ===== View 1: 회사 목록 ===== -->
+  <!-- ===== View 1: 채권 현황 (미수현황 + 채권추심 내역) ===== -->
   <div id="viewCompanies">
     <header>
-      <h1>채권추심 현황</h1>
-      <p class="header-sub">회사별 채권추심 신청 · 진행 · 종료 현황을 확인하세요.</p>
+      <h1>채권 현황</h1>
+      <p class="header-sub">회사별 미수현황과 채권추심 진행 내역을 확인하세요.</p>
     </header>
-    <div class="company-grid" id="companyGrid"><div class="empty-msg">불러오는 중...</div></div>
+
+    <!-- ----- 미수현황 ----- -->
+    <section class="page-section" id="arSection" aria-labelledby="arTitle">
+      <div class="section-head">
+        <div>
+          <h2 id="arTitle">미수현황</h2>
+          <p class="header-sub" id="arSub">불러오는 중...</p>
+        </div>
+        <div class="toolbar-actions">
+          <select class="ar-select" id="arMonth" aria-label="기준월 선택" onchange="arSelectMonth(this.value)"></select>
+          <label class="btn-primary" for="arFileInput" id="arUploadLabel">미회수 파일 업로드</label>
+          <input type="file" id="arFileInput" accept=".xlsx,.xlsm,.xls" multiple onchange="arHandleFiles(event)" hidden>
+        </div>
+      </div>
+      <div class="ar-msg" id="arMsg"></div>
+      <div id="arBody"><div class="empty-msg">불러오는 중...</div></div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- ----- 채권추심 내역 ----- -->
+    <section class="page-section" aria-labelledby="collTitle">
+      <div class="section-head">
+        <div>
+          <h2 id="collTitle">채권추심 내역</h2>
+          <p class="header-sub">회사별 채권추심 신청 · 진행 · 종료 현황입니다.</p>
+        </div>
+      </div>
+      <div class="toolbar">
+        <div class="toolbar-info" id="lastUpdated">불러오는 중...</div>
+        <div class="toolbar-actions">
+          <button class="btn-secondary" id="resetAllBtn" onclick="resetAll()">전체 초기화</button>
+          <button class="btn-secondary" onclick="downloadTemplate()">양식 다운로드</button>
+          <label class="btn-primary" for="fileInput" id="uploadLabel">엑셀 업로드</label>
+          <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFile(event)" hidden>
+        </div>
+      </div>
+      <div class="company-grid" id="companyGrid"><div class="empty-msg">불러오는 중...</div></div>
+    </section>
   </div>
 
   <!-- ===== View 2: 회사별 사건 목록 ===== -->
   <div id="viewCases" style="display:none">
     <div class="view-header" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;">
       <div>
-        <a class="back-link" onclick="showCompanies()">← 회사 목록</a>
+        <a class="back-link" onclick="showCompanies()">← 채권 현황</a>
         <div class="view-title" id="caseListTitle">-</div>
       </div>
       <div class="toolbar-actions">
@@ -283,6 +382,7 @@
   </div>
 
   <div id="statusMsg" class="status-msg"></div>
+  <div class="ar-tip" id="arTip"></div>
 
   <!-- ===== 새 사건 추가 / 수정 모달 ===== -->
   <div id="addCaseModal" class="modal-overlay" style="display:none" onclick="if(event.target===this) closeAddCaseModal()">
@@ -1042,6 +1142,385 @@
     }
   }
   document.addEventListener('DOMContentLoaded', init);
+</script>
+
+<script>
+  /*
+    ===== 미수현황 =====
+    매월 회사별 미회수 엑셀(미수 발생 관리표)을 올리면 전체미수 / 악성미수를 보여줍니다.
+    - 파일 속 "미수 발생 관리표" 시트(대상·디아이: 미수현황(전체), 픽스: 전체 미수현황)를 읽습니다.
+    - 회사는 파일 이름(대상국제교역 / 디아이화스너 / 픽스글로벌)으로 구분합니다.
+    - Supabase 테이블 receivable_monthly 에 회사 × 기준월 단위로 저장합니다.
+      (supabase/receivable_monthly.sql 을 SQL Editor에서 먼저 실행해주세요)
+      같은 회사·같은 기준월 파일을 다시 올리면 덮어씁니다.
+
+    악성미수 분류 (거래처 1곳은 한 구분에만 들어감)
+      1) 처리결과 칸이 추심요청 / 해지요청 / 유지 로 시작하면 그 구분
+      2) 그 외에 비고 칸에 "출고정지"가 들어 있으면 출고정지
+      3) 나머지는 정상
+  */
+  const AR_TABLE = 'receivable_monthly';
+  const AR_CATS = [
+    { key: '출고정지', color: 'var(--cat1)' },
+    { key: '해지요청', color: 'var(--cat2)' },
+    { key: '유지',     color: 'var(--cat3)' },
+    { key: '추심요청', color: 'var(--cat4)' },
+  ];
+  const AR_CAT_COLOR = Object.fromEntries(AR_CATS.map(c => [c.key, c.color]));
+
+  let arSnapshots = [];      // receivable_monthly 행들
+  let arMonthSel = null;     // 'YYYY-MM-DD'
+  let arTab = '전체';
+  let arCat = '악성전체';
+  let arQuery = '';
+  let arTSV = '';
+
+  const arWon = n => Math.round(n || 0).toLocaleString('ko-KR');
+  function arBig(n) {
+    const a = Math.abs(n);
+    if (a >= 1e8) return { v: (n / 1e8).toFixed(2).replace(/\.?0+$/, ''), u: '억원' };
+    if (a >= 1e4) return { v: Math.round(n / 1e4).toLocaleString('ko-KR'), u: '만원' };
+    return { v: arWon(n), u: '원' };
+  }
+  const arPct = (a, b) => b ? (a / b * 100).toFixed(1) + '%' : '–';
+  const arNorm = v => String(v ?? '').replace(/\s+/g, '');
+  const arIsNum = v => typeof v === 'number' && isFinite(v);
+  const arMonthLabel = d => { const [y, m] = String(d).split('-'); return `${y}년 ${Number(m)}월`; };
+
+  function arShowMsg(html) { const el = document.getElementById('arMsg'); el.innerHTML = html; el.style.display = html ? 'block' : 'none'; }
+
+  function arClassify(note, result) {
+    const g = arNorm(result);
+    for (const k of ['추심요청', '해지요청', '유지']) if (g.startsWith(k)) return k;
+    if (String(note ?? '').includes('출고정지')) return '출고정지';
+    return null;
+  }
+
+  function arCompanyFromFile(fileName) {
+    const base = fileName.replace(/\.[^.]+$/, '');
+    const key = companyMatchKey(base);
+    const known = COMPANY_ORDER.find(c => key.includes(companyMatchKey(c)));
+    if (known) return known;
+    const parts = base.split('_');
+    const i = parts.findIndex(p => /^\d{4}$/.test(p.trim()));
+    const seg = (i >= 0 && parts[i + 1]) ? parts[i + 1] : parts[0];
+    return normalizeCompanyName(seg.replace(/\(.*?\)/g, '').trim().split(/\s+/)[0] || base);
+  }
+
+  function arParseWorkbook(wb, fileName) {
+    let sheetName = null, rows = null;
+    for (const sn of wb.SheetNames) {
+      const r = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: null, blankrows: true });
+      if (r.slice(0, 3).some(row => arNorm(row?.[0]).includes('미수발생관리표'))) { sheetName = sn; rows = r; break; }
+    }
+    if (!rows) throw new Error('"미수 발생 관리표" 시트를 찾지 못했어요. 미수현황(전체) 시트가 있는 파일인지 확인해 주세요.');
+
+    let baseDate = null;
+    for (let i = 0; i < 8 && i < rows.length; i++) {
+      const v = rows[i]?.[1];
+      if (arNorm(rows[i]?.[0]).includes('기준월') && arIsNum(v)) {
+        const p = XLSX.SSF.parse_date_code(v);
+        baseDate = `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`;
+        break;
+      }
+    }
+    if (!baseDate) {
+      const m = String(rows[0]?.[0] || '').match(/(\d{4})-(\d{2})-(\d{2})/);
+      if (m) baseDate = `${m[1]}-${m[2]}-${m[3]}`;
+    }
+    if (!baseDate) throw new Error('기준월(기준일)을 찾지 못했어요.');
+
+    const h = rows.findIndex(r => arNorm(r?.[0]) === '거래처명' && arNorm(r?.[1]).includes('사업자'));
+    if (h < 0) throw new Error('"거래처명 / 사업자등록번호" 제목 행을 찾지 못했어요.');
+    const hdr = rows[h].map(arNorm);
+    const col = f => hdr.findIndex(f);
+    const C = {
+      biz: col(x => x.includes('사업자')),
+      total: col(x => x.includes('총') && x.includes('미수')),
+      note: col(x => x === '비고'),
+      result: col(x => x.includes('처리결과')),
+      longest: col(x => x.includes('최장')),
+      elapsed: col(x => x.includes('경과')),
+    };
+    if (C.total < 0 || C.note < 0 || C.result < 0) throw new Error('총미수잔액 / 비고 / 처리결과 열을 찾지 못했어요.');
+
+    // 원본 상단의 구분별 합계 (비교용)
+    const origBlock = {};
+    for (let i = 0; i < h; i++) {
+      const k = arNorm(rows[i]?.[0]);
+      if (AR_CATS.some(c => c.key === k) && arIsNum(rows[i][1])) origBlock[k] = rows[i][1];
+    }
+
+    const customers = []; let fileTotal = null;
+    for (let i = h + 1; i < rows.length; i++) {
+      const r = rows[i]; if (!r) continue;
+      const nm = arNorm(r[0]);
+      const amt = r[C.total];
+      if (nm === '합계' || nm === '소계') { if (arIsNum(amt)) fileTotal = amt; continue; }
+      if (!nm || nm === '0' || nm.startsWith('※') || !arIsNum(amt)) continue;
+      customers.push({
+        name: String(r[0]).trim(),
+        biz: r[C.biz] ? String(r[C.biz]) : '',
+        amount: amt,
+        note: String(r[C.note] ?? '').trim(),
+        result: String(r[C.result] ?? '').trim(),
+        longest: C.longest >= 0 ? String(r[C.longest] ?? '') : '',
+        elapsed: C.elapsed >= 0 && arIsNum(r[C.elapsed]) ? r[C.elapsed] : null,
+        cat: arClassify(r[C.note], r[C.result]),
+      });
+    }
+
+    const total = customers.reduce((s, c) => s + c.amount, 0);
+    const byCat = Object.fromEntries(AR_CATS.map(c => [c.key, { amt: 0, n: 0 }]));
+    customers.forEach(c => { if (c.cat) { byCat[c.cat].amt += c.amount; byCat[c.cat].n++; } });
+    const origSum = AR_CATS.reduce((a, c) => a + (origBlock[c.key] || 0), 0);
+
+    return {
+      company: arCompanyFromFile(fileName),
+      base_date: baseDate,
+      file_name: fileName,
+      sheet_name: sheetName,
+      total,
+      customer_count: customers.filter(c => c.amount !== 0).length,
+      by_cat: byCat,
+      bad_customers: customers.filter(c => c.cat),
+      checks: {
+        row_count: customers.length,
+        file_total: fileTotal,
+        orig_sum: origSum || null,
+        no_biz_count: customers.filter(c => !c.biz && c.amount > 0).length,
+      },
+    };
+  }
+
+  function arSummary(s) {
+    const bad = AR_CATS.reduce((a, c) => a + (s.by_cat?.[c.key]?.amt || 0), 0);
+    const badN = AR_CATS.reduce((a, c) => a + (s.by_cat?.[c.key]?.n || 0), 0);
+    return { total: Number(s.total) || 0, bad, badN, byCat: s.by_cat || {}, custN: s.customer_count || 0 };
+  }
+
+  /* ---------- Supabase ---------- */
+  async function arLoad() {
+    const { data, error } = await db.from(AR_TABLE).select('*').order('base_date', { ascending: false });
+    if (error) throw error;
+    arSnapshots = (data || []).map(r => ({ ...r, company: normalizeCompanyName(r.company) }));
+  }
+
+  async function arHandleFiles(evt) {
+    const files = [...evt.target.files];
+    evt.target.value = '';
+    if (!files.length) return;
+    const label = document.getElementById('arUploadLabel');
+    label.style.pointerEvents = 'none'; label.style.opacity = .6;
+    const errs = [], parsed = [];
+    arShowMsg('파일을 읽는 중...');
+    for (const f of files) {
+      try {
+        const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array' });
+        parsed.push(arParseWorkbook(wb, f.name));
+      } catch (e) { errs.push(`${escapeHtml(f.name)}: ${escapeHtml(e.message)}`); }
+    }
+    let saveErr = null;
+    if (parsed.length) {
+      try {
+        arShowMsg('저장하는 중...');
+        const { error } = await db.from(AR_TABLE).upsert(
+          parsed.map(p => ({ ...p, uploaded_at: new Date().toISOString() })),
+          { onConflict: 'company,base_date' });
+        if (error) throw error;
+        await arLoad();
+      } catch (e) {
+        saveErr = e;
+        // 저장이 안 되면 이 화면에서만이라도 보여줌
+        parsed.forEach(p => {
+          arSnapshots = arSnapshots.filter(s => !(s.company === p.company && s.base_date === p.base_date));
+          arSnapshots.unshift(p);
+        });
+      }
+      arMonthSel = parsed.map(p => p.base_date).sort().pop();
+    }
+    const msgs = [];
+    if (saveErr) msgs.push(`⚠️ 공유 서버(Supabase)에 저장하지 못해 이 화면에서만 보입니다. receivable_monthly 테이블이 만들어졌는지 확인해 주세요.<span class="status-detail">${escapeHtml(saveErr.message || saveErr)}</span>`);
+    if (errs.length) msgs.push('⚠️ 읽지 못한 파일<br>' + errs.join('<br>'));
+    arShowMsg(msgs.join('<br><br>'));
+    label.style.pointerEvents = ''; label.style.opacity = 1;
+    arRender();
+  }
+
+  /* ---------- 화면 ---------- */
+  function arSelectMonth(v) { arMonthSel = v; arRender(); }
+
+  function arRender() {
+    const months = [...new Set(arSnapshots.map(s => s.base_date))].sort().reverse();
+    const sel = document.getElementById('arMonth');
+    if (!months.includes(arMonthSel)) arMonthSel = months[0] || null;
+    sel.innerHTML = months.length ? months.map(m => `<option value="${m}" ${m === arMonthSel ? 'selected' : ''}>${arMonthLabel(m)}</option>`).join('') : '<option>기준월 없음</option>';
+    sel.disabled = !months.length;
+
+    const body = document.getElementById('arBody');
+    if (!arMonthSel) {
+      document.getElementById('arSub').textContent = '매월 회사별 미회수 엑셀을 올리면 전체미수와 악성미수를 보여줍니다.';
+      body.innerHTML = `<div class="panel"><div class="empty-state">
+        <div class="empty-state-title">아직 올린 미수 파일이 없어요</div>
+        <div class="empty-state-sub">"미회수 파일 업로드"로 3개 회사 파일을 한 번에 올려주세요. (미수현황(전체) 시트가 들어 있는 파일)</div>
+      </div></div>`;
+      return;
+    }
+
+    const snaps = arSnapshots.filter(s => s.base_date === arMonthSel);
+    const names = sortCompanies(snaps.map(s => s.company));
+    const byName = Object.fromEntries(snaps.map(s => [s.company, s]));
+    const sums = Object.fromEntries(names.map(n => [n, arSummary(byName[n])]));
+    const missing = COMPANY_ORDER.filter(c => !names.includes(c));
+    document.getElementById('arSub').textContent =
+      `기준일 ${arMonthSel} · ${names.join(', ')}` + (missing.length ? ` (${missing.join(', ')} 파일 없음)` : '');
+
+    const G = names.reduce((g, n) => { const s = sums[n]; g.total += s.total; g.bad += s.bad; g.badN += s.badN; g.custN += s.custN; return g; }, { total: 0, bad: 0, badN: 0, custN: 0 });
+    const catSum = k => names.reduce((a, n) => a + (sums[n].byCat[k]?.amt || 0), 0);
+    const catCnt = k => names.reduce((a, n) => a + (sums[n].byCat[k]?.n || 0), 0);
+    const kpi = (label, n, sub) => { const b = arBig(n); return `<div class="ar-kpi"><div class="stat-label">${label}</div><div class="stat-value">${b.v}<small>${b.u}</small></div><div class="stat-sub">${sub}</div></div>`; };
+    const hj = catSum('해지요청'), cs = catSum('추심요청');
+
+    // 회사별 막대 (같은 축)
+    const max = Math.max(1, ...names.map(n => sums[n].total));
+    const bars = names.map(n => {
+      const s = sums[n];
+      const segs = AR_CATS.filter(c => (s.byCat[c.key]?.amt || 0) > 0).map(c => {
+        const a = s.byCat[c.key].amt;
+        return `<div class="ar-seg" style="flex:0 0 ${a / max * 100}%;background:${c.color}" data-tip="${escapeHtml(`<b>${escapeHtml(n)} · ${c.key}</b><br>${arWon(a)}원 · ${s.byCat[c.key].n}곳<br>악성미수의 ${arPct(a, s.bad)}`)}"></div>`;
+      }).join('');
+      const normal = Math.max(0, s.total - s.bad);
+      const normSeg = normal > 0 ? `<div class="ar-seg" style="flex:0 0 ${normal / max * 100}%;background:var(--cat-normal)" data-tip="${escapeHtml(`<b>${escapeHtml(n)} · 정상 미수</b><br>${arWon(normal)}원`)}"></div>` : '';
+      return `<div class="ar-bar-row">
+        <div class="ar-bar-name">${escapeHtml(n)}</div>
+        <div class="ar-track">${segs}${normSeg}</div>
+        <div class="ar-bar-meta"><span>전체 <b>${arWon(s.total)}</b>원</span><span>악성 <b>${arWon(s.bad)}</b>원 (${arPct(s.bad, s.total)}, ${s.badN}곳)</span></div>
+      </div>`;
+    }).join('');
+
+    // 요약표
+    const row = (label, s, cls) => `<tr class="${cls || ''}"><td>${escapeHtml(label)}</td><td class="r">${arWon(s.total)}</td><td class="r">${arWon(s.bad)}<span class="cnt">${s.badN}곳</span></td><td class="r">${arPct(s.bad, s.total)}</td>${
+      AR_CATS.map(c => `<td class="r">${arWon(s.byCat[c.key]?.amt)}<span class="cnt">${s.byCat[c.key]?.n || 0}곳</span></td>`).join('')}</tr>`;
+    const Gs = { ...G, byCat: Object.fromEntries(AR_CATS.map(c => [c.key, { amt: catSum(c.key), n: catCnt(c.key) }])) };
+    const matrix = `<table class="ar-table"><thead><tr><th>회사</th><th class="r">전체미수</th><th class="r">악성미수</th><th class="r">악성비율</th>${
+      AR_CATS.map(c => `<th class="r"><span class="ar-pill" style="--pc:${c.color}">${c.key}</span></th>`).join('')}</tr></thead><tbody>${
+      names.map(n => row(n, sums[n])).join('')}${names.length > 1 ? row('합계', Gs, 'total') : ''}</tbody></table>`;
+    arTSV = [['회사', '전체미수', '악성미수', '악성비율', ...AR_CATS.flatMap(c => [c.key + ' 금액', c.key + ' 건수'])],
+      ...[...names.map(n => [n, sums[n]]), ...(names.length > 1 ? [['합계', Gs]] : [])].map(([n, s]) =>
+        [n, Math.round(s.total), Math.round(s.bad), arPct(s.bad, s.total), ...AR_CATS.flatMap(c => [Math.round(s.byCat[c.key]?.amt || 0), s.byCat[c.key]?.n || 0])])
+    ].map(r => r.join('\t')).join('\n');
+
+    // 파일 점검
+    const checks = names.map(n => {
+      const s = byName[n], ck = s.checks || {}, sm = sums[n], flags = [];
+      if (ck.file_total != null) {
+        const diff = sm.total - ck.file_total;
+        flags.push(Math.abs(diff) < 1
+          ? `<div class="ar-flag ok">파일 합계행과 일치 (${arWon(ck.file_total)}원)</div>`
+          : `<div class="ar-flag warn">파일 합계행 ${arWon(ck.file_total)}원 ≠ 거래처 합산 ${arWon(sm.total)}원 (차이 ${arWon(diff)}원). 합계 수식 범위 밖에 추가된 거래처가 있는지 확인해 주세요.</div>`);
+      } else flags.push(`<div class="ar-flag warn">파일에서 합계/소계 행을 찾지 못해 비교하지 못했어요.</div>`);
+      if (ck.orig_sum && Math.abs(ck.orig_sum - sm.bad) >= 1)
+        flags.push(`<div class="ar-flag warn">원본 상단의 구분별 합계를 그대로 더하면 ${arWon(ck.orig_sum)}원이지만, 중복을 빼면 악성미수는 ${arWon(sm.bad)}원입니다.</div>`);
+      if (ck.no_biz_count) flags.push(`<div class="ar-flag warn">사업자번호가 비어 있는 미수 거래처 ${ck.no_biz_count}곳</div>`);
+      return `<div class="ar-check"><h3>${escapeHtml(n)}</h3>
+        <div class="line"><span>파일</span><span style="text-align:right;word-break:break-all">${escapeHtml(s.file_name || '')}</span></div>
+        <div class="line"><span>읽은 시트 / 행</span><span>${escapeHtml(s.sheet_name || '')} / ${ck.row_count ?? '-'}행</span></div>
+        <div class="line"><span>올린 시각</span><span>${s.uploaded_at ? new Date(s.uploaded_at).toLocaleString('ko-KR') : '저장 안 됨'}</span></div>
+        ${flags.join('')}</div>`;
+    }).join('');
+
+    body.innerHTML = `
+      <div class="ar-kpis">
+        ${kpi(`${names.length}사 전체미수`, G.total, `${arWon(G.total)}원 · 잔액 거래처 ${G.custN.toLocaleString()}곳`)}
+        ${kpi('악성미수', G.bad, `${arWon(G.bad)}원 · ${G.badN}곳`)}
+        <div class="ar-kpi"><div class="stat-label">악성 비율</div><div class="stat-value">${arPct(G.bad, G.total)}</div><div class="stat-sub">전체미수 대비 악성미수</div></div>
+        ${kpi('해지·추심 요청', hj + cs, `해지 ${arBig(hj).v}${arBig(hj).u} · 추심 ${arBig(cs).v}${arBig(cs).u}`)}
+      </div>
+      <div class="panel ar-panel">
+        <div class="ar-panel-head"><h3 class="section-title">회사별 전체미수 중 악성미수</h3><p>막대 길이는 전체미수(같은 축), 색칠된 부분이 악성미수입니다.</p></div>
+        <div class="ar-legend">${AR_CATS.map(c => `<span><i class="ar-sw" style="background:${c.color}"></i>${c.key}</span>`).join('')}<span><i class="ar-sw" style="background:var(--cat-normal)"></i>정상 미수</span></div>
+        <div class="ar-bars">${bars}</div>
+      </div>
+      <div class="panel ar-panel">
+        <div class="ar-panel-head"><h3 class="section-title">보고용 요약표</h3>
+          <button class="btn-secondary" id="arCopyBtn" onclick="arCopy()">표 복사 (엑셀 붙여넣기용)</button></div>
+        <div class="table-scroll">${matrix}</div>
+      </div>
+      <div class="panel ar-panel">
+        <div class="ar-panel-head"><h3 class="section-title">악성미수 거래처 명세</h3><p id="arDetailSum"></p></div>
+        <div class="ar-controls">
+          <div class="filter-tabs" style="margin:0" id="arTabs"></div>
+          <input type="search" class="ar-search" id="arSearch" placeholder="거래처명 검색" aria-label="거래처명 검색" value="${escapeHtml(arQuery)}" oninput="arQuery=this.value;arRenderDetail()">
+        </div>
+        <div class="ar-chips" id="arChips"></div>
+        <div class="ar-scroll"><table class="ar-table" id="arDetail"></table></div>
+      </div>
+      <div class="panel ar-panel">
+        <details class="ar-details">
+          <summary>파일 점검 · 분류 기준</summary>
+          <div class="ar-checks">${checks}</div>
+          <div class="ar-rule"><b>악성미수 분류 기준</b> (거래처 1곳은 한 구분에만 들어갑니다)
+            <ol>
+              <li>처리결과 칸이 <b>추심요청 / 해지요청 / 유지</b>로 시작하면 그 구분</li>
+              <li>그 외에 비고 칸에 "출고정지"가 들어 있으면 <b>출고정지</b> (처리 방향 미정)</li>
+              <li>나머지는 정상. 악성미수 = 네 구분의 합 (중복 없음)</li>
+            </ol>
+            같은 회사·같은 기준월 파일을 다시 올리면 덮어씁니다.
+          </div>
+        </details>
+      </div>`;
+
+    body.querySelectorAll('.ar-seg').forEach(el => {
+      el.addEventListener('mouseenter', e => arTipShow(e, el.dataset.tip));
+      el.addEventListener('mousemove', arTipMove);
+      el.addEventListener('mouseleave', () => { document.getElementById('arTip').style.display = 'none'; });
+    });
+    arRenderDetail();
+  }
+
+  function arRenderDetail() {
+    const snaps = arSnapshots.filter(s => s.base_date === arMonthSel);
+    const names = sortCompanies(snaps.map(s => s.company));
+    if (arTab !== '전체' && !names.includes(arTab)) arTab = '전체';
+    document.getElementById('arTabs').innerHTML = ['전체', ...names].map(n =>
+      `<button class="filter-tab ${n === arTab ? 'active' : ''}" onclick="arTab='${jsStr(n)}';arRenderDetail()">${escapeHtml(n)}</button>`).join('');
+
+    const pool = snaps.filter(s => arTab === '전체' || s.company === arTab)
+      .flatMap(s => (s.bad_customers || []).map(c => ({ ...c, company: s.company })));
+    const cnt = k => pool.filter(x => x.cat === k).length;
+    document.getElementById('arChips').innerHTML =
+      `<button class="ar-chip ${arCat === '악성전체' ? 'active' : ''}" onclick="arCat='악성전체';arRenderDetail()">악성 전체 ${pool.length}</button>` +
+      AR_CATS.map(c => `<button class="ar-chip ${arCat === c.key ? 'active' : ''}" onclick="arCat='${c.key}';arRenderDetail()"><i class="ar-sw" style="background:${c.color};width:8px;height:8px"></i>${c.key} ${cnt(c.key)}</button>`).join('');
+
+    const q = arQuery.trim();
+    const list = pool.filter(x => (arCat === '악성전체' || x.cat === arCat) && (!q || x.name.includes(q))).sort((a, b) => b.amount - a.amount);
+    document.getElementById('arDetailSum').textContent = `${list.length}곳 · ${arWon(list.reduce((s, x) => s + x.amount, 0))}원`;
+    const showCo = arTab === '전체';
+    document.getElementById('arDetail').innerHTML = `<thead><tr><th>구분</th>${showCo ? '<th>회사</th>' : ''}<th>거래처명</th><th class="r">미수잔액</th><th class="r">최장연체월</th><th class="r">경과개월</th><th>비고</th><th>처리결과</th></tr></thead><tbody>${
+      list.length ? list.map(x => `<tr><td><span class="ar-pill" style="--pc:${AR_CAT_COLOR[x.cat]}">${x.cat}</span></td>${showCo ? `<td class="co">${escapeHtml(x.company)}</td>` : ''}<td class="td-name">${escapeHtml(x.name)}</td><td class="r">${arWon(x.amount)}</td><td class="r">${escapeHtml(x.longest)}</td><td class="r">${x.elapsed ?? ''}</td><td class="note">${escapeHtml(x.note)}</td><td class="note">${escapeHtml(x.result)}</td></tr>`).join('')
+      : `<tr><td colspan="${showCo ? 8 : 7}">${emptyMsg('해당하는 거래처가 없어요')}</td></tr>`}</tbody>`;
+  }
+
+  function arTipShow(e, html) { const t = document.getElementById('arTip'); t.innerHTML = html; t.style.display = 'block'; arTipMove(e); }
+  function arTipMove(e) { const t = document.getElementById('arTip'); t.style.left = Math.min(e.clientX + 14, innerWidth - t.offsetWidth - 8) + 'px'; t.style.top = (e.clientY + 14) + 'px'; }
+
+  async function arCopy() {
+    const btn = document.getElementById('arCopyBtn');
+    try { await navigator.clipboard.writeText(arTSV); btn.textContent = '복사했어요'; }
+    catch { btn.textContent = '복사 실패'; }
+    setTimeout(() => { btn.textContent = '표 복사 (엑셀 붙여넣기용)'; }, 2000);
+  }
+
+  async function arInit() {
+    try {
+      await arLoad();
+    } catch (err) {
+      console.error(err);
+      arShowMsg(`⚠️ 저장된 미수현황을 불러오지 못했어요. Supabase에 receivable_monthly 테이블이 있는지 확인해 주세요. (supabase/receivable_monthly.sql)<span class="status-detail">${escapeHtml(err?.message || err)}</span>`);
+    }
+    arRender();
+  }
+  document.addEventListener('DOMContentLoaded', arInit);
 </script>
 </body>
 </html>

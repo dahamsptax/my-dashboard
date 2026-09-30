@@ -150,6 +150,17 @@
   }
   .leave-refresh-btn:hover{border-color:var(--accent);color:var(--accent);}
   .leave-refresh-btn:disabled{opacity:.5;cursor:default;}
+  .leave-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .leave-nav-btn{
+    font-family:inherit;font-size:13px;font-weight:700;width:32px;height:32px;border-radius:999px;
+    cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--text);flex:none;
+  }
+  .leave-nav-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .leave-month-input{
+    font-family:inherit;font-size:12.5px;font-weight:700;padding:6px 10px;border-radius:999px;
+    border:1px solid var(--border);background:#fff;color:var(--text);height:32px;box-sizing:border-box;
+  }
+  .leave-month-input:focus{outline:none;border-color:var(--accent);}
   .leave-status{font-size:11.5px;color:var(--text-muted);margin-bottom:14px;}
   .leave-status.error{color:#b91c1c;}
   .leave-calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
@@ -276,10 +287,16 @@
   <div class="panel" style="margin-bottom:20px;">
     <div class="leave-panel-head">
       <div>
-        <p class="section-title" style="margin-bottom:2px;">이번달 연차 사용 현황</p>
+        <p class="section-title" style="margin-bottom:2px;">월별 연차 사용 현황</p>
         <p class="section-caption" id="leaveMonthLabel" style="margin-bottom:0;">연차관리시스템에서 불러오는 중입니다...</p>
       </div>
-      <button class="leave-refresh-btn" id="leaveRefreshBtn" type="button" onclick="fetchLeaveCalendar()">새로고침</button>
+      <div class="leave-controls">
+        <button class="leave-nav-btn" type="button" title="이전 달" onclick="shiftLeaveMonth(-1)">&lsaquo;</button>
+        <input class="leave-month-input" id="leaveMonthInput" type="month" title="조회할 월 선택" onchange="onLeaveMonthChange()">
+        <button class="leave-nav-btn" type="button" title="다음 달" onclick="shiftLeaveMonth(1)">&rsaquo;</button>
+        <button class="leave-refresh-btn" type="button" onclick="resetLeaveMonth()">이번 달</button>
+        <button class="leave-refresh-btn" id="leaveRefreshBtn" type="button" onclick="fetchLeaveCalendar()">새로고침</button>
+      </div>
     </div>
     <p class="leave-status" id="leaveStatus">&nbsp;</p>
     <div class="leave-calendar" id="leaveCalendar"></div>
@@ -795,14 +812,76 @@
     elx.classList.toggle("error", !!isError);
   }
 
+  // 한 번 불러온 데이터를 보관해 두고, 월을 바꿀 때는 다시 불러오지 않고 달력만 새로 그립니다.
+  var leaveData = null;      // { employees, records, fetchedAt }
+  var leaveError = "";
+
+  function currentYm(){
+    var t = new Date();
+    return t.getFullYear() + "-" + pad2(t.getMonth() + 1);
+  }
+
+  function selectedYm(){
+    var v = $("leaveMonthInput").value;
+    return /^\d{4}-\d{2}$/.test(v) ? v : currentYm();
+  }
+
+  function renderSelectedLeaveMonth(){
+    var ym = selectedYm();
+    $("leaveMonthInput").value = ym;
+    var year = +ym.slice(0, 4), month = +ym.slice(5, 7);
+    $("leaveMonthLabel").textContent = year + "년 " + month + "월 연차 사용 현황";
+
+    if(!leaveData){
+      renderLeaveCalendar(year, month, {});
+      if(leaveError){ setLeaveStatus(leaveError, true); }
+      return;
+    }
+
+    var empByKey = {};
+    (leaveData.employees || []).forEach(function(e){ empByKey[e.key] = e; });
+
+    var namesByDate = {};
+    var approved = 0, pending = 0;
+    var monthPrefix = ym + "-";
+    (leaveData.records || []).forEach(function(r){
+      if(!r.date || r.date.indexOf(monthPrefix) !== 0) return;
+      if(r.status === "approved") approved++;
+      else if(r.status === "pending") pending++;
+      var emp = empByKey[r.empKey];
+      if(!namesByDate[r.date]) namesByDate[r.date] = [];
+      namesByDate[r.date].push({
+        name: emp ? emp.name : "(알 수 없음)",
+        dept: emp ? emp.dept : "",
+        status: r.status
+      });
+    });
+
+    renderLeaveCalendar(year, month, namesByDate);
+
+    var fetchedLabel = leaveData.fetchedAt ? new Date(leaveData.fetchedAt).toLocaleTimeString("ko-KR", { hour:"2-digit", minute:"2-digit" }) : "";
+    setLeaveStatus("연차관리시스템에서 불러왔습니다" + (fetchedLabel ? " · " + fetchedLabel : "") + " · " + month + "월 승인 " + approved + "건, 신청중 " + pending + "건");
+  }
+
+  function onLeaveMonthChange(){ renderSelectedLeaveMonth(); }
+
+  function shiftLeaveMonth(delta){
+    var ym = selectedYm();
+    var d = new Date(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + delta, 1);
+    $("leaveMonthInput").value = d.getFullYear() + "-" + pad2(d.getMonth() + 1);
+    renderSelectedLeaveMonth();
+  }
+
+  function resetLeaveMonth(){
+    $("leaveMonthInput").value = currentYm();
+    renderSelectedLeaveMonth();
+  }
+
   function fetchLeaveCalendar(){
     var btn = $("leaveRefreshBtn");
     btn.disabled = true;
     setLeaveStatus("불러오는 중입니다...");
-
-    var now = new Date();
-    var year = now.getFullYear(), month = now.getMonth() + 1;
-    $("leaveMonthLabel").textContent = year + "년 " + month + "월 연차 사용 현황";
+    renderSelectedLeaveMonth();
 
     var headers = {};
     if(LEAVE_API_KEY){ headers["x-api-key"] = LEAVE_API_KEY; }
@@ -813,33 +892,15 @@
         return res.json();
       })
       .then(function(data){
-        var employees = data.employees || [];
-        var records = data.records || [];
-        var empByKey = {};
-        employees.forEach(function(e){ empByKey[e.key] = e; });
-
-        var namesByDate = {};
-        var monthPrefix = year + "-" + pad2(month) + "-";
-        records.forEach(function(r){
-          if(!r.date || r.date.indexOf(monthPrefix) !== 0) return;
-          var emp = empByKey[r.empKey];
-          if(!namesByDate[r.date]) namesByDate[r.date] = [];
-          namesByDate[r.date].push({
-            name: emp ? emp.name : "(알 수 없음)",
-            dept: emp ? emp.dept : "",
-            status: r.status
-          });
-        });
-
-        renderLeaveCalendar(year, month, namesByDate);
-
-        var fetchedLabel = data.fetchedAt ? new Date(data.fetchedAt).toLocaleTimeString("ko-KR", { hour:"2-digit", minute:"2-digit" }) : "";
-        setLeaveStatus("연차관리시스템에서 불러왔습니다" + (fetchedLabel ? " · " + fetchedLabel : "") + " · 승인 " + records.filter(function(r){return r.status==='approved';}).length + "건, 신청중 " + records.filter(function(r){return r.status==='pending';}).length + "건");
+        leaveData = data;
+        leaveError = "";
+        renderSelectedLeaveMonth();
       })
       .catch(function(err){
         console.error(err);
-        renderLeaveCalendar(year, month, {});
-        setLeaveStatus("연차관리시스템에서 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요. (" + (err && err.message ? err.message : String(err)) + ")", true);
+        leaveData = null;
+        leaveError = "연차관리시스템에서 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요. (" + (err && err.message ? err.message : String(err)) + ")";
+        renderSelectedLeaveMonth();
       })
       .finally(function(){
         btn.disabled = false;
@@ -1000,6 +1061,9 @@
   window.downloadTemplate = downloadTemplate;
   window.resetAll = resetAll;
   window.fetchLeaveCalendar = fetchLeaveCalendar;
+  window.onLeaveMonthChange = onLeaveMonthChange;
+  window.shiftLeaveMonth = shiftLeaveMonth;
+  window.resetLeaveMonth = resetLeaveMonth;
 
   function initAll(){
     loadFromStorage();

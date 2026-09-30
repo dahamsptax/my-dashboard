@@ -264,6 +264,15 @@
   details.ar-details summary{cursor:pointer;font-size:14px;font-weight:700;}
   .ar-rule{font-size:12.5px;color:var(--text-muted);line-height:1.7;margin-top:12px;}
   .ar-rule ol{margin:4px 0 0;padding-left:20px;}
+  .ar-delta{font-size:11.5px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  .ar-delta.up{color:#b42318;}
+  .ar-delta.down{color:#067647;}
+  .ar-delta.flat{color:var(--text-muted);}
+  .ar-kpi .stat-delta{margin-top:6px;font-size:12px;color:var(--text-muted);}
+  .ar-new{display:inline-block;margin-left:6px;font-size:10.5px;font-weight:800;padding:1px 6px;border-radius:999px;background:#fef3f2;color:#b42318;vertical-align:1px;}
+  .ar-foot{font-size:12px;color:var(--text-muted);margin-top:10px;}
+  .ar-table tr.grp-row th{border-bottom:none;padding-bottom:2px;}
+  .ar-table th.grp{text-align:center;}
   .ar-msg{display:none;margin-bottom:16px;padding:12px 16px;border-radius:10px;font-size:13px;line-height:1.6;background:var(--warn-bg);color:var(--warn-text);}
 
   @media (max-width:640px){
@@ -1153,6 +1162,8 @@
     - Supabase 테이블 receivable_monthly 에 회사 × 기준월 단위로 저장합니다.
       (supabase/receivable_monthly.sql 을 SQL Editor에서 먼저 실행해주세요)
       같은 회사·같은 기준월 파일을 다시 올리면 덮어씁니다.
+    - 전월 대비: 같은 회사의 바로 이전 기준월 자료와 비교합니다. 거래처는 사업자번호(없으면 거래처명)로 맞춥니다.
+      비고·처리결과 열이 없는 옛 양식(2026년 7월 이전)은 전체미수만 저장되고 악성 구분은 비교하지 않습니다.
 
     악성미수 분류 (거래처 1곳은 한 구분에만 들어감)
       1) 처리결과 칸이 추심요청 / 해지요청 / 유지 로 시작하면 그 구분
@@ -1201,10 +1212,7 @@
     const key = companyMatchKey(base);
     const known = COMPANY_ORDER.find(c => key.includes(companyMatchKey(c)));
     if (known) return known;
-    const parts = base.split('_');
-    const i = parts.findIndex(p => /^\d{4}$/.test(p.trim()));
-    const seg = (i >= 0 && parts[i + 1]) ? parts[i + 1] : parts[0];
-    return normalizeCompanyName(seg.replace(/\(.*?\)/g, '').trim().split(/\s+/)[0] || base);
+    throw new Error('파일 이름에서 회사를 알 수 없어요. 파일 이름에 대상국제교역 / 디아이화스너 / 픽스글로벌 중 하나를 넣어주세요.');
   }
 
   function arParseWorkbook(wb, fileName) {
@@ -1242,7 +1250,8 @@
       longest: col(x => x.includes('최장')),
       elapsed: col(x => x.includes('경과')),
     };
-    if (C.total < 0 || C.note < 0 || C.result < 0) throw new Error('총미수잔액 / 비고 / 처리결과 열을 찾지 못했어요.');
+    if (C.total < 0) throw new Error('총미수잔액 열을 찾지 못했어요.');
+    const hasCat = C.note >= 0 && C.result >= 0;   // 옛 양식(비고·처리결과 없음)은 전체미수만 집계
 
     // 원본 상단의 구분별 합계 (비교용)
     const origBlock = {};
@@ -1256,17 +1265,19 @@
       const r = rows[i]; if (!r) continue;
       const nm = arNorm(r[0]);
       const amt = r[C.total];
-      if (nm === '합계' || nm === '소계') { if (arIsNum(amt)) fileTotal = amt; continue; }
+      // 합계 행 아래는 연체 요약 등 다른 표라서 읽지 않음
+      if (nm === '합계' || nm === '소계') { if (arIsNum(amt)) fileTotal = amt; break; }
       if (!nm || nm === '0' || nm.startsWith('※') || !arIsNum(amt)) continue;
       customers.push({
         name: String(r[0]).trim(),
         biz: r[C.biz] ? String(r[C.biz]) : '',
         amount: amt,
-        note: String(r[C.note] ?? '').trim(),
-        result: String(r[C.result] ?? '').trim(),
+        key: arKey(r[C.biz], r[0]),
+        note: hasCat ? String(r[C.note] ?? '').trim() : '',
+        result: hasCat ? String(r[C.result] ?? '').trim() : '',
         longest: C.longest >= 0 ? String(r[C.longest] ?? '') : '',
         elapsed: C.elapsed >= 0 && arIsNum(r[C.elapsed]) ? r[C.elapsed] : null,
-        cat: arClassify(r[C.note], r[C.result]),
+        cat: hasCat ? arClassify(r[C.note], r[C.result]) : null,
       });
     }
 
@@ -1289,15 +1300,44 @@
         file_total: fileTotal,
         orig_sum: origSum || null,
         no_biz_count: customers.filter(c => !c.biz && c.amount > 0).length,
+        has_category: hasCat,
+        // 전월 대비용: 잔액이 있는 모든 거래처 [키, 거래처명, 미수잔액]
+        amounts: customers.filter(c => c.amount !== 0).map(c => [c.key, c.name, c.amount]),
       },
     };
   }
 
+  function arKey(biz, name) {
+    const d = String(biz ?? '').replace(/\D/g, '');
+    return d.length >= 10 ? d : 'n:' + arNorm(name);
+  }
+
   function arSummary(s) {
+    if (!s) return null;
     const bad = AR_CATS.reduce((a, c) => a + (s.by_cat?.[c.key]?.amt || 0), 0);
     const badN = AR_CATS.reduce((a, c) => a + (s.by_cat?.[c.key]?.n || 0), 0);
-    return { total: Number(s.total) || 0, bad, badN, byCat: s.by_cat || {}, custN: s.customer_count || 0 };
+    const hasCat = s.checks?.has_category !== false;
+    return { total: Number(s.total) || 0, bad, badN, byCat: s.by_cat || {}, custN: s.customer_count || 0, hasCat };
   }
+
+  // 같은 회사의 바로 이전 기준월 자료
+  function arPrevSnap(company, date) {
+    return arSnapshots.filter(s => s.company === company && s.base_date < date)
+      .sort((a, b) => b.base_date.localeCompare(a.base_date))[0] || null;
+  }
+
+  // 증감 표시: 미수는 늘면 빨강(▲), 줄면 초록(▼)
+  function arDelta(cur, prev, opts) {
+    if (prev == null || cur == null) return '<span class="ar-delta flat">–</span>';
+    const d = cur - prev;
+    const full = opts && opts.full;
+    if (Math.abs(d) < 1) return '<span class="ar-delta flat">변동 없음</span>';
+    const b = arBig(Math.abs(d));
+    const txt = full ? arWon(Math.abs(d)) + '원' : b.v + b.u;
+    const pct = opts && opts.pct && prev ? ` (${d > 0 ? '+' : '−'}${Math.abs(d / prev * 100).toFixed(1)}%)` : '';
+    return `<span class="ar-delta ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲' : '▼'} ${txt}${pct}</span>`;
+  }
+  const arMonthShort = d => d ? `${Number(String(d).split('-')[1])}월` : '';
 
   /* ---------- Supabase ---------- */
   async function arLoad() {
@@ -1372,14 +1412,28 @@
     const byName = Object.fromEntries(snaps.map(s => [s.company, s]));
     const sums = Object.fromEntries(names.map(n => [n, arSummary(byName[n])]));
     const missing = COMPANY_ORDER.filter(c => !names.includes(c));
+    const prevByName = Object.fromEntries(names.map(n => [n, arPrevSnap(n, arMonthSel)]));
+    const prevSums = Object.fromEntries(names.map(n => [n, arSummary(prevByName[n])]));
+    const prevDates = [...new Set(names.map(n => prevByName[n]?.base_date).filter(Boolean))];
+    const hasPrev = names.every(n => prevSums[n]);
+    const curHasCat = names.every(n => sums[n].hasCat);
+    const prevHasCat = hasPrev && names.every(n => prevSums[n].hasCat);
+    const prevLabel = prevDates.length === 1 ? arMonthShort(prevDates[0]) : '전월';
     document.getElementById('arSub').textContent =
-      `기준일 ${arMonthSel} · ${names.join(', ')}` + (missing.length ? ` (${missing.join(', ')} 파일 없음)` : '');
+      `기준일 ${arMonthSel} · ${names.join(', ')}` + (missing.length ? ` (${missing.join(', ')} 파일 없음)` : '') +
+      (hasPrev ? ` · 비교: ${prevDates.map(arMonthLabel).join(', ')}` : ' · 비교할 전월 자료 없음');
 
     const G = names.reduce((g, n) => { const s = sums[n]; g.total += s.total; g.bad += s.bad; g.badN += s.badN; g.custN += s.custN; return g; }, { total: 0, bad: 0, badN: 0, custN: 0 });
     const catSum = k => names.reduce((a, n) => a + (sums[n].byCat[k]?.amt || 0), 0);
     const catCnt = k => names.reduce((a, n) => a + (sums[n].byCat[k]?.n || 0), 0);
-    const kpi = (label, n, sub) => { const b = arBig(n); return `<div class="ar-kpi"><div class="stat-label">${label}</div><div class="stat-value">${b.v}<small>${b.u}</small></div><div class="stat-sub">${sub}</div></div>`; };
+    const kpi = (label, n, sub, delta) => { const b = arBig(n); return `<div class="ar-kpi"><div class="stat-label">${label}</div><div class="stat-value">${b.v}<small>${b.u}</small></div><div class="stat-sub">${sub}</div>${delta ? `<div class="stat-delta">${delta}</div>` : ''}</div>`; };
+    const kpiNA = (label, sub) => `<div class="ar-kpi"><div class="stat-label">${label}</div><div class="stat-value">–</div><div class="stat-sub">${sub}</div></div>`;
     const hj = catSum('해지요청'), cs = catSum('추심요청');
+    const P = hasPrev ? names.reduce((g, n) => { const s = prevSums[n]; g.total += s.total; g.bad += s.bad; g.badN += s.badN; return g; }, { total: 0, bad: 0, badN: 0 }) : null;
+    const pCat = k => names.reduce((a, n) => a + (prevSums[n]?.byCat[k]?.amt || 0), 0);
+    const pCnt = k => names.reduce((a, n) => a + (prevSums[n]?.byCat[k]?.n || 0), 0);
+    const vsPrev = html => `${prevLabel} 대비 ${html}`;
+    const noPrevCat = hasPrev && !prevHasCat ? `${prevLabel} 파일엔 악성 구분이 없어 비교 불가` : '';
 
     // 회사별 막대 (같은 축)
     const max = Math.max(1, ...names.map(n => sums[n].total));
@@ -1394,7 +1448,7 @@
       return `<div class="ar-bar-row">
         <div class="ar-bar-name">${escapeHtml(n)}</div>
         <div class="ar-track">${segs}${normSeg}</div>
-        <div class="ar-bar-meta"><span>전체 <b>${arWon(s.total)}</b>원</span><span>악성 <b>${arWon(s.bad)}</b>원 (${arPct(s.bad, s.total)}, ${s.badN}곳)</span></div>
+        <div class="ar-bar-meta"><span>전체 <b>${arWon(s.total)}</b>원 ${prevSums[n] ? arDelta(s.total, prevSums[n].total) : ''}</span>${s.hasCat ? `<span>악성 <b>${arWon(s.bad)}</b>원 (${arPct(s.bad, s.total)}, ${s.badN}곳) ${prevSums[n]?.hasCat ? arDelta(s.bad, prevSums[n].bad) : ''}</span>` : '<span>악성 구분 없음 (옛 양식)</span>'}</div>
       </div>`;
     }).join('');
 
@@ -1405,10 +1459,51 @@
     const matrix = `<table class="ar-table"><thead><tr><th>회사</th><th class="r">전체미수</th><th class="r">악성미수</th><th class="r">악성비율</th>${
       AR_CATS.map(c => `<th class="r"><span class="ar-pill" style="--pc:${c.color}">${c.key}</span></th>`).join('')}</tr></thead><tbody>${
       names.map(n => row(n, sums[n])).join('')}${names.length > 1 ? row('합계', Gs, 'total') : ''}</tbody></table>`;
-    arTSV = [['회사', '전체미수', '악성미수', '악성비율', ...AR_CATS.flatMap(c => [c.key + ' 금액', c.key + ' 건수'])],
-      ...[...names.map(n => [n, sums[n]]), ...(names.length > 1 ? [['합계', Gs]] : [])].map(([n, s]) =>
-        [n, Math.round(s.total), Math.round(s.bad), arPct(s.bad, s.total), ...AR_CATS.flatMap(c => [Math.round(s.byCat[c.key]?.amt || 0), s.byCat[c.key]?.n || 0])])
+    const Ps = hasPrev ? { ...P, byCat: Object.fromEntries(AR_CATS.map(c => [c.key, { amt: pCat(c.key), n: pCnt(c.key) }])) } : null;
+    const rowsFor = [...names.map(n => [n, sums[n], prevSums[n]]), ...(names.length > 1 ? [['합계', Gs, Ps]] : [])];
+    arTSV = [['회사', '전체미수', '악성미수', '악성비율', ...AR_CATS.flatMap(c => [c.key + ' 금액', c.key + ' 건수']),
+        ...(hasPrev ? [prevLabel + ' 전체미수', '전체미수 증감', ...(prevHasCat ? [prevLabel + ' 악성미수', '악성미수 증감'] : [])] : [])],
+      ...rowsFor.map(([n, s, ps]) =>
+        [n, Math.round(s.total), Math.round(s.bad), arPct(s.bad, s.total), ...AR_CATS.flatMap(c => [Math.round(s.byCat[c.key]?.amt || 0), s.byCat[c.key]?.n || 0]),
+         ...(hasPrev ? [Math.round(ps.total), Math.round(s.total - ps.total), ...(prevHasCat ? [Math.round(ps.bad), Math.round(s.bad - ps.bad)] : [])] : [])])
     ].map(r => r.join('\t')).join('\n');
+
+    // 전월 대비 증감 표
+    const dRow = (label, s, ps, cls) => `<tr class="${cls || ''}"><td>${escapeHtml(label)}</td>
+      <td class="r">${arWon(ps.total)}</td><td class="r">${arWon(s.total)}</td><td class="r">${arDelta(s.total, ps.total, { full: true, pct: true })}</td>
+      ${prevHasCat && curHasCat
+        ? `<td class="r">${arWon(ps.bad)}</td><td class="r">${arWon(s.bad)}</td><td class="r">${arDelta(s.bad, ps.bad, { full: true, pct: true })}</td>` +
+          AR_CATS.map(c => `<td class="r">${arDelta(s.byCat[c.key]?.amt || 0, ps.byCat[c.key]?.amt || 0)}<span class="cnt">${(s.byCat[c.key]?.n || 0) - (ps.byCat[c.key]?.n || 0) >= 0 ? '+' : ''}${(s.byCat[c.key]?.n || 0) - (ps.byCat[c.key]?.n || 0)}곳</span></td>`).join('')
+        : ''}</tr>`;
+    const deltaTable = hasPrev ? `<table class="ar-table"><thead>
+        <tr class="grp-row"><th></th><th class="grp" colspan="3">전체미수</th>${prevHasCat && curHasCat ? `<th class="grp" colspan="3">악성미수</th><th class="grp" colspan="4">구분별 증감</th>` : ''}</tr>
+        <tr><th>회사</th><th class="r">${prevLabel}</th><th class="r">${arMonthShort(arMonthSel)}</th><th class="r">증감</th>
+        ${prevHasCat && curHasCat ? `<th class="r">${prevLabel}</th><th class="r">${arMonthShort(arMonthSel)}</th><th class="r">증감</th>` +
+          AR_CATS.map(c => `<th class="r"><span class="ar-pill" style="--pc:${c.color}">${c.key}</span></th>`).join('') : ''}</tr></thead>
+        <tbody>${rowsFor.map(([n, s, ps], i) => dRow(n, s, ps, i === names.length ? 'total' : '')).join('')}</tbody></table>
+        ${!prevHasCat ? `<div class="ar-foot">${prevLabel} 파일은 비고·처리결과 열이 없는 옛 양식이라 전체미수만 비교합니다. 악성미수 증감은 다음 달부터 보입니다.</div>` : ''}`
+      : '';
+
+    // 주요 변동 거래처 (미수잔액이 많이 늘거나 준 거래처)
+    let movers = [];
+    if (hasPrev) {
+      names.forEach(n => {
+        const cur = new Map((byName[n].checks?.amounts || []).map(([k, nm, a]) => [k, { nm, a }]));
+        const prv = new Map((prevByName[n].checks?.amounts || []).map(([k, nm, a]) => [k, { nm, a }]));
+        const catOf = new Map((byName[n].bad_customers || []).map(c => [c.key || arKey(c.biz, c.name), c.cat]));
+        new Set([...cur.keys(), ...prv.keys()]).forEach(k => {
+          const a = cur.get(k)?.a || 0, b = prv.get(k)?.a || 0;
+          if (Math.abs(a - b) >= 1) movers.push({ company: n, name: cur.get(k)?.nm || prv.get(k)?.nm, cur: a, prev: b, d: a - b, cat: catOf.get(k) });
+        });
+      });
+    }
+    const hasAmounts = hasPrev && names.every(n => (byName[n].checks?.amounts || []).length && (prevByName[n].checks?.amounts || []).length);
+    const up = movers.filter(m => m.d > 0).sort((a, b) => b.d - a.d).slice(0, 10);
+    const down = movers.filter(m => m.d < 0).sort((a, b) => a.d - b.d).slice(0, 10);
+    const moverTable = (list, title) => `<div style="min-width:0"><div class="info-label" style="margin-bottom:8px">${title}</div>
+      <div class="table-scroll"><table class="ar-table"><thead><tr><th>회사</th><th>거래처명</th><th class="r">${prevLabel}</th><th class="r">${arMonthShort(arMonthSel)}</th><th class="r">증감</th></tr></thead><tbody>${
+      list.length ? list.map(m => `<tr><td class="co">${escapeHtml(m.company)}</td><td class="td-name">${escapeHtml(m.name)}${m.cat ? ` <span class="ar-pill" style="--pc:${AR_CAT_COLOR[m.cat]};font-weight:600">${m.cat}</span>` : ''}</td><td class="r">${arWon(m.prev)}</td><td class="r">${arWon(m.cur)}</td><td class="r">${arDelta(m.cur, m.prev)}</td></tr>`).join('')
+      : `<tr><td colspan="5">${emptyMsg('해당 거래처가 없어요')}</td></tr>`}</tbody></table></div></div>`;
 
     // 파일 점검
     const checks = names.map(n => {
@@ -1431,16 +1526,26 @@
 
     body.innerHTML = `
       <div class="ar-kpis">
-        ${kpi(`${names.length}사 전체미수`, G.total, `${arWon(G.total)}원 · 잔액 거래처 ${G.custN.toLocaleString()}곳`)}
-        ${kpi('악성미수', G.bad, `${arWon(G.bad)}원 · ${G.badN}곳`)}
-        <div class="ar-kpi"><div class="stat-label">악성 비율</div><div class="stat-value">${arPct(G.bad, G.total)}</div><div class="stat-sub">전체미수 대비 악성미수</div></div>
-        ${kpi('해지·추심 요청', hj + cs, `해지 ${arBig(hj).v}${arBig(hj).u} · 추심 ${arBig(cs).v}${arBig(cs).u}`)}
+        ${kpi(`${names.length}사 전체미수`, G.total, `${arWon(G.total)}원 · 잔액 거래처 ${G.custN.toLocaleString()}곳`, hasPrev ? vsPrev(arDelta(G.total, P.total, { pct: true })) : '')}
+        ${curHasCat ? kpi('악성미수', G.bad, `${arWon(G.bad)}원 · ${G.badN}곳`, prevHasCat ? vsPrev(arDelta(G.bad, P.bad, { pct: true })) + ` · ${G.badN - P.badN >= 0 ? '+' : ''}${G.badN - P.badN}곳` : noPrevCat)
+          : kpiNA('악성미수', '이 달 파일엔 악성 구분이 없어요')}
+        ${curHasCat ? `<div class="ar-kpi"><div class="stat-label">악성 비율</div><div class="stat-value">${arPct(G.bad, G.total)}</div><div class="stat-sub">전체미수 대비 악성미수</div>${prevHasCat ? `<div class="stat-delta">${prevLabel} ${arPct(P.bad, P.total)}</div>` : ''}</div>`
+          : kpiNA('악성 비율', '이 달 파일엔 악성 구분이 없어요')}
+        ${curHasCat ? kpi('해지·추심 요청', hj + cs, `해지 ${arBig(hj).v}${arBig(hj).u} · 추심 ${arBig(cs).v}${arBig(cs).u}`, prevHasCat ? vsPrev(arDelta(hj + cs, pCat('해지요청') + pCat('추심요청'))) : noPrevCat)
+          : kpiNA('해지·추심 요청', '이 달 파일엔 악성 구분이 없어요')}
       </div>
       <div class="panel ar-panel">
         <div class="ar-panel-head"><h3 class="section-title">회사별 전체미수 중 악성미수</h3><p>막대 길이는 전체미수(같은 축), 색칠된 부분이 악성미수입니다.</p></div>
         <div class="ar-legend">${AR_CATS.map(c => `<span><i class="ar-sw" style="background:${c.color}"></i>${c.key}</span>`).join('')}<span><i class="ar-sw" style="background:var(--cat-normal)"></i>정상 미수</span></div>
         <div class="ar-bars">${bars}</div>
       </div>
+      ${hasPrev ? `<div class="panel ar-panel">
+        <div class="ar-panel-head"><h3 class="section-title">전월 대비 증감</h3><p>${prevDates.map(arMonthLabel).join(', ')} → ${arMonthLabel(arMonthSel)} · ▲ 증가(빨강) ▼ 감소(초록)</p></div>
+        <div class="table-scroll">${deltaTable}</div>
+        ${hasAmounts ? `<div class="ar-checks" style="grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));gap:20px;margin-top:22px">
+          ${moverTable(up, '미수가 가장 많이 늘어난 거래처 10곳')}${moverTable(down, '미수가 가장 많이 줄어든 거래처 10곳')}</div>`
+          : `<div class="ar-foot">거래처별 증감은 두 달 모두 새 방식으로 올린 파일이 있어야 보여요. 해당 월 파일을 한 번 더 올려주세요.</div>`}
+      </div>` : ''}
       <div class="panel ar-panel">
         <div class="ar-panel-head"><h3 class="section-title">보고용 요약표</h3>
           <button class="btn-secondary" id="arCopyBtn" onclick="arCopy()">표 복사 (엑셀 붙여넣기용)</button></div>
@@ -1485,20 +1590,47 @@
     document.getElementById('arTabs').innerHTML = ['전체', ...names].map(n =>
       `<button class="filter-tab ${n === arTab ? 'active' : ''}" onclick="arTab='${jsStr(n)}';arRenderDetail()">${escapeHtml(n)}</button>`).join('');
 
-    const pool = snaps.filter(s => arTab === '전체' || s.company === arTab)
-      .flatMap(s => (s.bad_customers || []).map(c => ({ ...c, company: s.company })));
+    const inTab = s => arTab === '전체' || s.company === arTab;
+    const pool = [], gone = [];
+    let prevCatKnown = true, anyPrev = false;
+    snaps.filter(inTab).forEach(s => {
+      const ps = arPrevSnap(s.company, arMonthSel);
+      const prevAmt = new Map((ps?.checks?.amounts || []).map(([k, , a]) => [k, a]));
+      const psHasCat = ps && ps.checks?.has_category !== false;
+      if (ps) anyPrev = true;
+      if (!psHasCat) prevCatKnown = false;
+      const prevBad = new Map((psHasCat ? ps.bad_customers || [] : []).map(c => [c.key || arKey(c.biz, c.name), c]));
+      const curAmt = new Map((s.checks?.amounts || []).map(([k, , a]) => [k, a]));
+      const curBadKeys = new Set();
+      (s.bad_customers || []).forEach(c => {
+        const k = c.key || arKey(c.biz, c.name);
+        curBadKeys.add(k);
+        pool.push({ ...c, company: s.company, prevAmount: ps && prevAmt.size ? (prevAmt.get(k) || 0) : null, isNew: psHasCat && !prevBad.has(k) });
+      });
+      prevBad.forEach((c, k) => { if (!curBadKeys.has(k)) gone.push({ ...c, company: s.company, prevAmount: c.amount, amount: curAmt.get(k) || 0, gone: true }); });
+    });
     const cnt = k => pool.filter(x => x.cat === k).length;
+    const newN = pool.filter(x => x.isNew).length;
+    const showGoneChip = anyPrev && prevCatKnown;
+    if ((arCat === '신규' || arCat === '해소') && !showGoneChip) arCat = '악성전체';
     document.getElementById('arChips').innerHTML =
       `<button class="ar-chip ${arCat === '악성전체' ? 'active' : ''}" onclick="arCat='악성전체';arRenderDetail()">악성 전체 ${pool.length}</button>` +
-      AR_CATS.map(c => `<button class="ar-chip ${arCat === c.key ? 'active' : ''}" onclick="arCat='${c.key}';arRenderDetail()"><i class="ar-sw" style="background:${c.color};width:8px;height:8px"></i>${c.key} ${cnt(c.key)}</button>`).join('');
+      AR_CATS.map(c => `<button class="ar-chip ${arCat === c.key ? 'active' : ''}" onclick="arCat='${c.key}';arRenderDetail()"><i class="ar-sw" style="background:${c.color};width:8px;height:8px"></i>${c.key} ${cnt(c.key)}</button>`).join('') +
+      (showGoneChip ? `<button class="ar-chip ${arCat === '신규' ? 'active' : ''}" onclick="arCat='신규';arRenderDetail()">전월 대비 신규 악성 ${newN}</button>` +
+        `<button class="ar-chip ${arCat === '해소' ? 'active' : ''}" onclick="arCat='해소';arRenderDetail()">전월 대비 악성 해소 ${gone.length}</button>` : '');
 
     const q = arQuery.trim();
-    const list = pool.filter(x => (arCat === '악성전체' || x.cat === arCat) && (!q || x.name.includes(q))).sort((a, b) => b.amount - a.amount);
-    document.getElementById('arDetailSum').textContent = `${list.length}곳 · ${arWon(list.reduce((s, x) => s + x.amount, 0))}원`;
+    const base = arCat === '해소' ? gone : arCat === '신규' ? pool.filter(x => x.isNew) : pool.filter(x => arCat === '악성전체' || x.cat === arCat);
+    const list = base.filter(x => !q || x.name.includes(q)).sort((a, b) => arCat === '해소' ? b.prevAmount - a.prevAmount : b.amount - a.amount);
+    document.getElementById('arDetailSum').textContent = arCat === '해소'
+      ? `${list.length}곳 · 전월 악성 ${arWon(list.reduce((s, x) => s + x.prevAmount, 0))}원`
+      : `${list.length}곳 · ${arWon(list.reduce((s, x) => s + x.amount, 0))}원`;
     const showCo = arTab === '전체';
-    document.getElementById('arDetail').innerHTML = `<thead><tr><th>구분</th>${showCo ? '<th>회사</th>' : ''}<th>거래처명</th><th class="r">미수잔액</th><th class="r">최장연체월</th><th class="r">경과개월</th><th>비고</th><th>처리결과</th></tr></thead><tbody>${
-      list.length ? list.map(x => `<tr><td><span class="ar-pill" style="--pc:${AR_CAT_COLOR[x.cat]}">${x.cat}</span></td>${showCo ? `<td class="co">${escapeHtml(x.company)}</td>` : ''}<td class="td-name">${escapeHtml(x.name)}</td><td class="r">${arWon(x.amount)}</td><td class="r">${escapeHtml(x.longest)}</td><td class="r">${x.elapsed ?? ''}</td><td class="note">${escapeHtml(x.note)}</td><td class="note">${escapeHtml(x.result)}</td></tr>`).join('')
-      : `<tr><td colspan="${showCo ? 8 : 7}">${emptyMsg('해당하는 거래처가 없어요')}</td></tr>`}</tbody>`;
+    const cols = showCo ? 9 : 8;
+    const noCatMonth = snaps.length && snaps.every(s => s.checks?.has_category === false);
+    document.getElementById('arDetail').innerHTML = `<thead><tr><th>구분</th>${showCo ? '<th>회사</th>' : ''}<th>거래처명</th><th class="r">미수잔액</th><th class="r">전월 대비</th><th class="r">최장연체월</th><th class="r">경과개월</th><th>비고</th><th>처리결과</th></tr></thead><tbody>${
+      list.length ? list.map(x => `<tr><td><span class="ar-pill" style="--pc:${AR_CAT_COLOR[x.cat]}">${x.cat}${x.gone ? ' → 해소' : ''}</span></td>${showCo ? `<td class="co">${escapeHtml(x.company)}</td>` : ''}<td class="td-name">${escapeHtml(x.name)}${x.isNew ? '<span class="ar-new">신규</span>' : ''}</td><td class="r">${arWon(x.amount)}</td><td class="r">${x.prevAmount == null ? '<span class="ar-delta flat">–</span>' : arDelta(x.amount, x.prevAmount)}</td><td class="r">${escapeHtml(x.gone ? '' : x.longest)}</td><td class="r">${x.gone ? '' : (x.elapsed ?? '')}</td><td class="note">${escapeHtml(x.note)}</td><td class="note">${escapeHtml(x.result)}</td></tr>`).join('')
+      : `<tr><td colspan="${cols}">${emptyMsg(noCatMonth ? '이 달 파일은 비고·처리결과 열이 없는 옛 양식이라 악성 구분이 없어요' : '해당하는 거래처가 없어요')}</td></tr>`}</tbody>`;
   }
 
   function arTipShow(e, html) { const t = document.getElementById('arTip'); t.innerHTML = html; t.style.display = 'block'; arTipMove(e); }

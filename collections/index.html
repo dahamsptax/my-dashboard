@@ -271,6 +271,9 @@
   .ar-kpi .stat-delta{margin-top:6px;font-size:12px;color:var(--text-muted);}
   .ar-new{display:inline-block;margin-left:6px;font-size:10.5px;font-weight:800;padding:1px 6px;border-radius:999px;background:#fef3f2;color:#b42318;vertical-align:1px;}
   .ar-foot{font-size:12px;color:var(--text-muted);margin-top:10px;}
+  /* 금액 열은 숫자 폭에 맞추고 남는 폭은 이름 열이 차지 → 헤더가 금액 바로 위에 오도록 */
+  .ar-table.tight th.r, .ar-table.tight td.r{width:1%;padding-left:28px;}
+  .ar-table.tight th.grp{width:auto;}
   .ar-table tr.grp-row th{border-bottom:none;padding-bottom:2px;}
   .ar-table th.grp{text-align:center;}
   .ar-msg{display:none;margin-bottom:16px;padding:12px 16px;border-radius:10px;font-size:13px;line-height:1.6;background:var(--warn-bg);color:var(--warn-text);}
@@ -1456,7 +1459,7 @@
     const row = (label, s, cls) => `<tr class="${cls || ''}"><td>${escapeHtml(label)}</td><td class="r">${arWon(s.total)}</td><td class="r">${arWon(s.bad)}<span class="cnt">${s.badN}곳</span></td><td class="r">${arPct(s.bad, s.total)}</td>${
       AR_CATS.map(c => `<td class="r">${arWon(s.byCat[c.key]?.amt)}<span class="cnt">${s.byCat[c.key]?.n || 0}곳</span></td>`).join('')}</tr>`;
     const Gs = { ...G, byCat: Object.fromEntries(AR_CATS.map(c => [c.key, { amt: catSum(c.key), n: catCnt(c.key) }])) };
-    const matrix = `<table class="ar-table"><thead><tr><th>회사</th><th class="r">전체미수</th><th class="r">악성미수</th><th class="r">악성비율</th>${
+    const matrix = `<table class="ar-table tight"><thead><tr><th>회사</th><th class="r">전체미수</th><th class="r">악성미수</th><th class="r">악성비율</th>${
       AR_CATS.map(c => `<th class="r"><span class="ar-pill" style="--pc:${c.color}">${c.key}</span></th>`).join('')}</tr></thead><tbody>${
       names.map(n => row(n, sums[n])).join('')}${names.length > 1 ? row('합계', Gs, 'total') : ''}</tbody></table>`;
     const Ps = hasPrev ? { ...P, byCat: Object.fromEntries(AR_CATS.map(c => [c.key, { amt: pCat(c.key), n: pCnt(c.key) }])) } : null;
@@ -1475,7 +1478,7 @@
         ? `<td class="r">${arWon(ps.bad)}</td><td class="r">${arWon(s.bad)}</td><td class="r">${arDelta(s.bad, ps.bad, { full: true, pct: true })}</td>` +
           AR_CATS.map(c => `<td class="r">${arDelta(s.byCat[c.key]?.amt || 0, ps.byCat[c.key]?.amt || 0)}<span class="cnt">${(s.byCat[c.key]?.n || 0) - (ps.byCat[c.key]?.n || 0) >= 0 ? '+' : ''}${(s.byCat[c.key]?.n || 0) - (ps.byCat[c.key]?.n || 0)}곳</span></td>`).join('')
         : ''}</tr>`;
-    const deltaTable = hasPrev ? `<table class="ar-table"><thead>
+    const deltaTable = hasPrev ? `<table class="ar-table tight"><thead>
         <tr class="grp-row"><th></th><th class="grp" colspan="3">전체미수</th>${prevHasCat && curHasCat ? `<th class="grp" colspan="3">악성미수</th><th class="grp" colspan="4">구분별 증감</th>` : ''}</tr>
         <tr><th>회사</th><th class="r">${prevLabel}</th><th class="r">${arMonthShort(arMonthSel)}</th><th class="r">증감</th>
         ${prevHasCat && curHasCat ? `<th class="r">${prevLabel}</th><th class="r">${arMonthShort(arMonthSel)}</th><th class="r">증감</th>` +

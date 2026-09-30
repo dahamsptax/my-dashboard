@@ -78,6 +78,14 @@
   .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
   .tabs a { font-size: 13px; font-weight: 700; text-decoration: none; padding: 8px 16px; border-radius: 999px; color: var(--color-text-muted); background: #f2f3f5; }
   .tabs a.active { color: #fff; background: var(--color-primary); }
+  .company-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .company-tab {
+    border: 1px solid var(--color-border); background: #fff; color: var(--color-text-muted);
+    font-weight: 700; font-size: 13px; padding: 8px 16px; border-radius: 999px; cursor: pointer;
+    font-family: inherit; transition: background .15s, border-color .15s, color .15s;
+  }
+  .company-tab:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .company-tab.active { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
   @media (max-width: 560px) {
     .drop-grid, .kpi-row { grid-template-columns: 1fr 1fr; }
   }
@@ -95,6 +103,12 @@
     회계 프로그램에서 뽑은 "매출 부가세 집계표" CSV 2개(이번 달, 전달)를 올리면 거래처별 매출을 대조해서
     8개 지표를 자동 계산합니다. 확인 후 저장을 눌러야 대시보드에 반영돼요.
   </p>
+
+  <div class="card">
+    <h2>회사 선택</h2>
+    <p class="hint">선택한 회사로 매출자료가 저장됩니다. 회사를 바꾸면 입력 중이던 파일/미리보기는 초기화돼요.</p>
+    <div class="company-tabs" id="companyTabs"></div>
+  </div>
 
   <div class="card">
     <h2>1. 파일 선택</h2>
@@ -151,6 +165,42 @@
   const previewCard = document.getElementById('previewCard');
   const slots = { A: null, B: null }; // { fileName, month, year, rows: Map(biz -> {name, amount}), sum }
   let computed = null;
+
+  // ---------- 회사 선택 (대상국제교역 / 디아이화스너 / 픽스글로벌) ----------
+  const COMPANIES = ['대상국제교역', '디아이화스너', '픽스글로벌'];
+  const COMPANY_STORAGE_KEY = 'salesUploadCompany';
+  let selectedCompany = localStorage.getItem(COMPANY_STORAGE_KEY);
+  if (!COMPANIES.includes(selectedCompany)) selectedCompany = COMPANIES[0];
+
+  function resetUploadState() {
+    slots.A = null; slots.B = null; computed = null;
+    ['A', 'B'].forEach((slot) => {
+      document.getElementById('dropzone' + slot).classList.remove('filled');
+      document.getElementById('fileInput' + slot).value = '';
+    });
+    document.getElementById('labelA').textContent = '.csv';
+    document.getElementById('labelB').textContent = '없으면 저장된 데이터 자동 사용';
+    previewCard.style.display = 'none';
+    statusEl.className = 'status';
+  }
+
+  function renderCompanyTabs() {
+    const wrap = document.getElementById('companyTabs');
+    wrap.innerHTML = COMPANIES.map((c) =>
+      `<button type="button" class="company-tab${c === selectedCompany ? ' active' : ''}" data-company="${escapeHtml(c)}">${escapeHtml(c)}</button>`
+    ).join('');
+    wrap.querySelectorAll('.company-tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const next = btn.dataset.company;
+        if (next === selectedCompany) return;
+        selectedCompany = next;
+        localStorage.setItem(COMPANY_STORAGE_KEY, selectedCompany);
+        resetUploadState();
+        renderCompanyTabs();
+      });
+    });
+  }
+  renderCompanyTabs();
 
   ['A', 'B'].forEach((slot) => {
     const zone = document.getElementById('dropzone' + slot);
@@ -277,6 +327,7 @@
         try {
           const { data, error } = await db.from('sales_customer_monthly')
             .select('biz,name,amount')
+            .eq('company', selectedCompany)
             .eq('year', Number(curr.year))
             .eq('month_num', prevMonthNum);
           if (error) throw error;
@@ -305,7 +356,8 @@
       // 최근 2개월 실거래 기준 근사치 대신 실제 등록 거래처 수로 바꿔치기합니다.
       try {
         const { count: masterCount, error: masterErr } = await db
-          .from('sales_customers').select('id', { count: 'exact', head: true });
+          .from('sales_customers').select('id', { count: 'exact', head: true })
+          .eq('company', selectedCompany);
         if (!masterErr && masterCount && masterCount > 0) {
           computed.totalCustomers = masterCount;
           computed.avgDeal = masterCount > 0 ? computed.currSum / masterCount : 0;
@@ -422,7 +474,7 @@
     showStatus(saveStatus, 'Supabase에 저장하는 중...', 'info');
     try {
       await saveToSupabase(computed);
-      showStatus(saveStatus, '저장 완료! 영업 대시보드에서 새로고침하면 바로 반영됩니다.', 'ok');
+      showStatus(saveStatus, `저장 완료! (${selectedCompany}) 영업 대시보드에서 새로고침하면 바로 반영됩니다.`, 'ok');
     } catch (err) {
       console.error(err);
       showStatus(saveStatus, '저장 실패: ' + (err.message || String(err)) +
@@ -432,7 +484,7 @@
 
   function mapToCustomerRows(map, year, monthNum) {
     const out = [];
-    map.forEach((v, biz) => out.push({ biz, name: v.name, year: Number(year), month_num: monthNum, amount: v.amount }));
+    map.forEach((v, biz) => out.push({ company: selectedCompany, biz, name: v.name, year: Number(year), month_num: monthNum, amount: v.amount }));
     return out;
   }
 
@@ -440,21 +492,24 @@
     // 0) 거래처×월 히스토리 저장 — 다음 달 업로드 때 "전달 파일 없이" 비교할 수 있게 함
     const currCustomerRows = mapToCustomerRows(r.currRows, r.currYear, r.currMonthNum);
     const { error: custCurrErr } = await db.from('sales_customer_monthly')
-      .upsert(currCustomerRows, { onConflict: 'biz,year,month_num' });
+      .upsert(currCustomerRows, { onConflict: 'company,biz,year,month_num' });
     if (custCurrErr) throw custCurrErr;
     if (r.hasPrevData && r.prevRows) {
       const prevCustomerRows = mapToCustomerRows(r.prevRows, r.prevYear, r.prevMonthNum);
       const { error: custPrevErr } = await db.from('sales_customer_monthly')
-        .upsert(prevCustomerRows, { onConflict: 'biz,year,month_num' });
+        .upsert(prevCustomerRows, { onConflict: 'company,biz,year,month_num' });
       if (custPrevErr) throw custPrevErr;
     }
 
     // 1) sales_monthly: 이번 달 행 갱신 또는 추가 (전체 누적 — 오래된 달을 지우지 않습니다)
     // sort_order는 업로드한 "순서"가 아니라 실제 달 숫자(currMonthNum)로 고정합니다 —
     // 1월~8월을 어떤 순서로 올리시든 그래프는 항상 달 순서(1,2,3...)대로 나오게 하기 위해서입니다.
-    const { data: existingMonthly, error: monthlyReadErr } = await db.from('sales_monthly').select('*').order('sort_order', { ascending: true });
+    // 회사별로 별도 행을 유지하기 위해 이 회사(company) 것만 조회합니다.
+    const { data: existingMonthly, error: monthlyReadErr } = await db.from('sales_monthly')
+      .select('*').eq('company', selectedCompany).order('sort_order', { ascending: true });
     if (monthlyReadErr) throw monthlyReadErr;
     const monthRow = {
+      company: selectedCompany,
       month: r.currMonthLabel,
       sort_order: r.currMonthNum,
       revenue: Math.round(r.currSum / 10000),
@@ -471,17 +526,17 @@
       if (error) throw error;
     }
 
-    // 2) sales_pipeline / sales_rank: 이번 달 기준 스냅샷으로 교체
-    const { error: delPipeErr } = await db.from('sales_pipeline').delete().gte('id', 0);
+    // 2) sales_pipeline / sales_rank: 이 회사의 이번 달 기준 스냅샷으로 교체 (다른 회사 행은 건드리지 않음)
+    const { error: delPipeErr } = await db.from('sales_pipeline').delete().eq('company', selectedCompany);
     if (delPipeErr) throw delPipeErr;
-    const pipelineRows = r.funnel.map((f, i) => ({ sort_order: i + 1, stage: f.stage, count: f.count }));
+    const pipelineRows = r.funnel.map((f, i) => ({ company: selectedCompany, sort_order: i + 1, stage: f.stage, count: f.count }));
     const { error: insPipeErr } = await db.from('sales_pipeline').insert(pipelineRows);
     if (insPipeErr) throw insPipeErr;
 
-    const { error: delRankErr } = await db.from('sales_rank').delete().gte('id', 0);
+    const { error: delRankErr } = await db.from('sales_rank').delete().eq('company', selectedCompany);
     if (delRankErr) throw delRankErr;
-    const gainerRows = r.gainers.map(g => ({ kind: 'gainer', name: g.name, amount: Math.round(g.curr / 10000), rate: Math.round(g.rate * 10) / 10 }));
-    const sellerRows = r.sellers.map(s => ({ kind: 'seller', name: s.name, amount: Math.round(s.amount / 10000), rate: null }));
+    const gainerRows = r.gainers.map(g => ({ company: selectedCompany, kind: 'gainer', name: g.name, amount: Math.round(g.curr / 10000), rate: Math.round(g.rate * 10) / 10 }));
+    const sellerRows = r.sellers.map(s => ({ company: selectedCompany, kind: 'seller', name: s.name, amount: Math.round(s.amount / 10000), rate: null }));
     if (gainerRows.length || sellerRows.length) {
       const { error: insRankErr } = await db.from('sales_rank').insert([...gainerRows, ...sellerRows]);
       if (insRankErr) throw insRankErr;

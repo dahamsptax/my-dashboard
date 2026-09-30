@@ -100,6 +100,14 @@
   .rank-fill { height: 100%; background: var(--color-primary); border-radius: 999px; }
   .footnote { text-align: center; font-size: 11.5px; color: var(--color-text-muted); margin-top: 24px; }
   .empty { font-size: 13px; color: var(--color-text-muted); }
+  .company-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+  .company-tab {
+    border: 1px solid var(--color-border); background: #fff; color: var(--color-text-muted);
+    font-weight: 700; font-size: 13px; padding: 8px 16px; border-radius: 999px; cursor: pointer;
+    font-family: inherit; transition: background .15s, border-color .15s, color .15s;
+  }
+  .company-tab:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .company-tab.active { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
   @media (max-width: 1024px) {
     .charts-grid { grid-template-columns: 1fr; }
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
@@ -119,6 +127,7 @@
 <body>
 <div class="page">
   <div class="topnav"><a href="/">← 대시보드 허브</a></div>
+  <div class="company-tabs" id="companyTabs"></div>
   <header class="page-header">
     <div>
       <h1>영업 대시보드</h1>
@@ -181,23 +190,105 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
   }
+
+  // ---------- 회사 선택 (통합 / 대상국제교역 / 디아이화스너 / 픽스글로벌) ----------
+  const REAL_COMPANIES = ['대상국제교역', '디아이화스너', '픽스글로벌'];
+  const COMPANIES = ['통합', ...REAL_COMPANIES];
+  const COMPANY_STORAGE_KEY = 'salesDashboardCompany';
+  let selectedCompany = localStorage.getItem(COMPANY_STORAGE_KEY);
+  if (!COMPANIES.includes(selectedCompany)) selectedCompany = '통합';
+
+  function renderCompanyTabs() {
+    const wrap = document.getElementById('companyTabs');
+    wrap.innerHTML = COMPANIES.map((c) =>
+      `<button type="button" class="company-tab${c === selectedCompany ? ' active' : ''}" data-company="${escapeHtml(c)}">${escapeHtml(c)}</button>`
+    ).join('');
+    wrap.querySelectorAll('.company-tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const next = btn.dataset.company;
+        if (next === selectedCompany) return;
+        selectedCompany = next;
+        localStorage.setItem(COMPANY_STORAGE_KEY, selectedCompany);
+        renderCompanyTabs();
+        loadDashboard();
+      });
+    });
+  }
+  renderCompanyTabs();
+
+  // 통합 탭: 회사별로 따로 저장된 sales_monthly/sales_pipeline/sales_rank 스냅샷을 합산합니다.
+  function aggregateMonthlyAll(rows) {
+    const byMonth = new Map(); // sort_order -> acc
+    rows.forEach((r) => {
+      const key = r.sort_order;
+      if (!byMonth.has(key)) {
+        byMonth.set(key, { month: r.month, sort_order: r.sort_order, revenue: 0, target: 0, targetMissing: false, total_customers: 0, _gw: 0, _gwWeight: 0 });
+      }
+      const acc = byMonth.get(key);
+      acc.revenue += Number(r.revenue) || 0;
+      if (r.target != null) acc.target += Number(r.target); else acc.targetMissing = true;
+      acc.total_customers += Number(r.total_customers) || 0;
+      if (r.avg_growth_rate != null) {
+        acc._gw += Number(r.avg_growth_rate) * (Number(r.revenue) || 0);
+        acc._gwWeight += Number(r.revenue) || 0;
+      }
+    });
+    return [...byMonth.values()]
+      .map((acc) => ({
+        month: acc.month,
+        sort_order: acc.sort_order,
+        revenue: acc.revenue,
+        target: acc.targetMissing ? null : acc.target,
+        total_customers: acc.total_customers,
+        avg_growth_rate: acc._gwWeight > 0 ? acc._gw / acc._gwWeight : null,
+      }))
+      .sort((a, b) => a.sort_order - b.sort_order);
+  }
+  function aggregatePipelineAll(rows) {
+    const byStage = new Map();
+    rows.forEach((r) => {
+      if (!byStage.has(r.stage)) byStage.set(r.stage, { stage: r.stage, count: 0, sort_order: r.sort_order });
+      const acc = byStage.get(r.stage);
+      acc.count += Number(r.count) || 0;
+      acc.sort_order = Math.min(acc.sort_order, r.sort_order);
+    });
+    return [...byStage.values()].sort((a, b) => a.sort_order - b.sort_order);
+  }
+  // 회사별로 이미 top5씩만 저장돼 있으므로, 그 합집합 중 다시 top5를 뽑으면 전체 top5와 항상 같습니다.
+  function aggregateRankAll(rows) {
+    const gainers = rows.filter((r) => r.kind === 'gainer').sort((a, b) => (b.rate || 0) - (a.rate || 0)).slice(0, 5);
+    const sellers = rows.filter((r) => r.kind === 'seller').sort((a, b) => (b.amount || 0) - (a.amount || 0)).slice(0, 5);
+    return [...gainers, ...sellers];
+  }
+
   async function loadDashboard() {
     const subtitle = document.getElementById('subtitle');
     subtitle.textContent = '데이터를 불러오는 중...';
+    const isAll = selectedCompany === '통합';
     try {
-      const [monthlyRes, pipelineRes, rankRes] = await Promise.all([
-        db.from('sales_monthly').select('*').order('sort_order', { ascending: true }),
-        db.from('sales_pipeline').select('*').order('sort_order', { ascending: true }),
-        db.from('sales_rank').select('*').order('amount', { ascending: false }),
-      ]);
+      let monthlyQ = db.from('sales_monthly').select('*').order('sort_order', { ascending: true });
+      let pipelineQ = db.from('sales_pipeline').select('*').order('sort_order', { ascending: true });
+      let rankQ = db.from('sales_rank').select('*').order('amount', { ascending: false });
+      if (!isAll) {
+        monthlyQ = monthlyQ.eq('company', selectedCompany);
+        pipelineQ = pipelineQ.eq('company', selectedCompany);
+        rankQ = rankQ.eq('company', selectedCompany);
+      }
+      const [monthlyRes, pipelineRes, rankRes] = await Promise.all([monthlyQ, pipelineQ, rankQ]);
       if (monthlyRes.error) throw monthlyRes.error;
       if (pipelineRes.error) throw pipelineRes.error;
       if (rankRes.error) throw rankRes.error;
-      const monthly = monthlyRes.data || [];
-      const pipeline = pipelineRes.data || [];
-      const rank = rankRes.data || [];
+      let monthly = monthlyRes.data || [];
+      let pipeline = pipelineRes.data || [];
+      let rank = rankRes.data || [];
+      if (isAll) {
+        monthly = aggregateMonthlyAll(monthly);
+        pipeline = aggregatePipelineAll(pipeline);
+        rank = aggregateRankAll(rank);
+      }
       if (!monthly.length || !pipeline.length) {
-        subtitle.textContent = '표시할 데이터가 없습니다.';
+        subtitle.textContent = (isAll ? '통합' : selectedCompany) + ' — 표시할 데이터가 없습니다.';
+        document.getElementById('kpiGrid').innerHTML = '';
         return;
       }
       renderKPI(monthly, pipeline);
@@ -206,7 +297,7 @@
       renderRank('personRank', rank.filter(r => r.kind === 'gainer'), 'gainer');
       renderRank('productRank', rank.filter(r => r.kind === 'seller'), 'seller');
       const now = new Date();
-      subtitle.textContent = '기준월: ' + monthly[monthly.length - 1].month + ' · 마지막 업데이트 ' +
+      subtitle.textContent = (isAll ? '통합(3개 회사)' : selectedCompany) + ' · 기준월: ' + monthly[monthly.length - 1].month + ' · 마지막 업데이트 ' +
         now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
     } catch (err) {
       console.error(err);

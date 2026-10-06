@@ -882,19 +882,49 @@
   }
 
   /* ---------- 1000건 제한 없이 전체 행 가져오기 ---------- */
+  // 불러오는 중 제외된 행 수 (화면 안내용)
+  const loadStats = { pageDup: 0, exactDup: 0, summaryRows: 0 };
+
   async function fetchAllRows(tableName) {
     const pageSize = 1000;
     let from = 0;
-    let all = [];
+    const byId = new Map();
+    let pageDup = 0;
     while (true) {
-      const { data, error } = await db.from(tableName).select('*').range(from, from + pageSize - 1);
+      // order 없이 range만 쓰면 페이지 경계에서 같은 행이 두 번 읽힐 수 있어서 id 순으로 고정
+      const { data, error } = await db.from(tableName).select('*')
+        .order('id', { ascending: true })
+        .range(from, from + pageSize - 1);
       if (error) throw error;
       if (!data || !data.length) break;
-      all = all.concat(data);
+      data.forEach(r => {
+        if (byId.has(r.id)) pageDup++;   // 같은 id가 또 오면 중복 → 한 번만 사용
+        else byId.set(r.id, r);
+      });
       if (data.length < pageSize) break;
       from += pageSize;
     }
-    return all;
+    loadStats.pageDup = pageDup;
+    return [...byId.values()];
+  }
+
+  // 총계/합계 행 제외 + 완전히 같은 행(거래처·월·금액 동일) 중복 제거
+  function cleanRows(rows) {
+    const seen = new Set();
+    const out = [];
+    let summaryRows = 0, exactDup = 0;
+    rows.forEach(r => {
+      const biz = String(r.biz ?? '').trim();
+      const name = String(r.name ?? '').trim();
+      if (!biz || /^(총계|합계|소계)/.test(name)) { summaryRows++; return; }
+      const key = `${biz}|${name}|${r.year}|${r.month_num}|${Number(r.amount) || 0}`;
+      if (seen.has(key)) { exactDup++; return; }
+      seen.add(key);
+      out.push(r);
+    });
+    loadStats.summaryRows = summaryRows;
+    loadStats.exactDup = exactDup;
+    return out;
   }
 
   /* ---------- 데이터 로드 & 기준월 선택 ---------- */
@@ -940,8 +970,19 @@
       return;
     }
     try {
-      allSalesRows = await fetchAllRows('sales_customer_monthly');
-      hideStatus();
+      const rawRows = await fetchAllRows('sales_customer_monthly');
+      allSalesRows = cleanRows(rawRows);
+
+      // 제외된 행이 있으면 원인 파악용으로 안내 (없으면 숨김)
+      const notes = [];
+      if (loadStats.pageDup) notes.push(`불러오는 중 겹쳐 읽힌 행 ${fmtNum(loadStats.pageDup)}건`);
+      if (loadStats.exactDup) notes.push(`DB에 똑같이 두 번 저장된 행 ${fmtNum(loadStats.exactDup)}건`);
+      if (loadStats.summaryRows) notes.push(`총계/합계 행 ${fmtNum(loadStats.summaryRows)}건`);
+      if (notes.length) {
+        showStatus(`ℹ️ 중복 집계를 막기 위해 계산에서 제외했어요: ${notes.join(', ')}`);
+      } else {
+        hideStatus();
+      }
 
       const fullModel = buildModel(allSalesRows);
       setupMonthSelect(fullModel);

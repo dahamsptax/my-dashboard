@@ -274,9 +274,23 @@
   /* 금액 열은 숫자 폭에 맞추고 남는 폭은 이름 열이 차지 → 헤더가 금액 바로 위에 오도록 */
   .ar-table.tight th.r, .ar-table.tight td.r{width:1%;padding-left:28px;}
   .ar-table.tight th.grp{width:auto;}
-  .ar-table tr.grp-row th{border-bottom:none;padding-bottom:2px;}
-  .ar-table th.grp{text-align:center;}
+  .ar-table.tight td:first-child, .ar-table.tight th:first-child{white-space:nowrap;}
+  .ar-table tr.grp-row th{border-bottom:none;padding-bottom:0;}
+  .ar-table th.grp{text-align:center;font-size:11px;font-weight:800;letter-spacing:.02em;padding:6px 8px 7px;box-shadow:inset 0 -3px 0 currentColor;}
+  .ar-table.tight tr.grp-row th.grp:nth-of-type(2){background:var(--border-soft);color:var(--text-muted);}
+  .ar-table.tight tr.grp-row th.grp:nth-of-type(3){background:rgba(220,38,38,.1);color:#b42318;}
+  .ar-table.tight tr.grp-row th.grp:nth-of-type(4){background:rgba(79,70,229,.1);color:var(--accent);}
+  .ar-table.tight tr.grp-row th.grp:nth-of-type(3),
+  .ar-table.tight tr.grp-row th.grp:nth-of-type(4){border-left:4px solid #fff;}
   .ar-msg{display:none;margin-bottom:16px;padding:12px 16px;border-radius:10px;font-size:13px;line-height:1.6;background:var(--warn-bg);color:var(--warn-text);}
+  .mover-panel{background:rgba(var(--accent-rgb),.04);border:1.5px solid rgba(var(--accent-rgb),.35);}
+  .mover-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));gap:20px;}
+  .mover-box{min-width:0;background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px 6px;box-shadow:var(--shadow);}
+  .mover-box.up{border-top:4px solid #dc2626;}
+  .mover-box.down{border-top:4px solid #16a34a;}
+  .mover-head{font-size:13.5px;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+  .mover-box.up .mover-head{color:#b42318;}
+  .mover-box.down .mover-head{color:#067647;}
 
   @media (max-width:640px){
     .wrap{padding:24px 14px 48px;}
@@ -1190,6 +1204,8 @@
   let arTSV = '';
 
   const arWon = n => Math.round(n || 0).toLocaleString('ko-KR');
+  // 원 단위가 너무 길어 읽기 어려운 표(전월 대비 증감)에서는 백만원 단위로만 표기
+  const arMM = n => Math.round((n || 0) / 1e6).toLocaleString('ko-KR') + '백만원';
   function arBig(n) {
     const a = Math.abs(n);
     if (a >= 1e8) return { v: (n / 1e8).toFixed(2).replace(/\.?0+$/, ''), u: '억원' };
@@ -1334,9 +1350,10 @@
     if (prev == null || cur == null) return '<span class="ar-delta flat">–</span>';
     const d = cur - prev;
     const full = opts && opts.full;
+    const mm = opts && opts.mm;
     if (Math.abs(d) < 1) return '<span class="ar-delta flat">변동 없음</span>';
     const b = arBig(Math.abs(d));
-    const txt = full ? arWon(Math.abs(d)) + '원' : b.v + b.u;
+    const txt = mm ? arMM(Math.abs(d)) : (full ? arWon(Math.abs(d)) + '원' : b.v + b.u);
     const pct = opts && opts.pct && prev ? ` (${d > 0 ? '+' : '−'}${Math.abs(d / prev * 100).toFixed(1)}%)` : '';
     return `<span class="ar-delta ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲' : '▼'} ${txt}${pct}</span>`;
   }
@@ -1473,9 +1490,9 @@
 
     // 전월 대비 증감 표
     const dRow = (label, s, ps, cls) => `<tr class="${cls || ''}"><td>${escapeHtml(label)}</td>
-      <td class="r">${arWon(ps.total)}</td><td class="r">${arWon(s.total)}</td><td class="r">${arDelta(s.total, ps.total, { full: true, pct: true })}</td>
+      <td class="r">${arMM(ps.total)}</td><td class="r">${arMM(s.total)}</td><td class="r">${arDelta(s.total, ps.total, { mm: true, pct: true })}</td>
       ${prevHasCat && curHasCat
-        ? `<td class="r">${arWon(ps.bad)}</td><td class="r">${arWon(s.bad)}</td><td class="r">${arDelta(s.bad, ps.bad, { full: true, pct: true })}</td>` +
+        ? `<td class="r">${arMM(ps.bad)}</td><td class="r">${arMM(s.bad)}</td><td class="r">${arDelta(s.bad, ps.bad, { mm: true, pct: true })}</td>` +
           AR_CATS.map(c => `<td class="r">${arDelta(s.byCat[c.key]?.amt || 0, ps.byCat[c.key]?.amt || 0)}<span class="cnt">${(s.byCat[c.key]?.n || 0) - (ps.byCat[c.key]?.n || 0) >= 0 ? '+' : ''}${(s.byCat[c.key]?.n || 0) - (ps.byCat[c.key]?.n || 0)}곳</span></td>`).join('')
         : ''}</tr>`;
     const deltaTable = hasPrev ? `<table class="ar-table tight"><thead>
@@ -1503,7 +1520,7 @@
     const hasAmounts = hasPrev && names.every(n => (byName[n].checks?.amounts || []).length && (prevByName[n].checks?.amounts || []).length);
     const up = movers.filter(m => m.d > 0).sort((a, b) => b.d - a.d).slice(0, 10);
     const down = movers.filter(m => m.d < 0).sort((a, b) => a.d - b.d).slice(0, 10);
-    const moverTable = (list, title) => `<div style="min-width:0"><div class="info-label" style="margin-bottom:8px">${title}</div>
+    const moverTable = (list, title, kind) => `<div class="mover-box ${kind}"><div class="mover-head">${kind === 'up' ? '▲' : '▼'} ${title}</div>
       <div class="table-scroll"><table class="ar-table"><thead><tr><th>회사</th><th>거래처명</th><th class="r">${prevLabel}</th><th class="r">${arMonthShort(arMonthSel)}</th><th class="r">증감</th></tr></thead><tbody>${
       list.length ? list.map(m => `<tr><td class="co">${escapeHtml(m.company)}</td><td class="td-name">${escapeHtml(m.name)}${m.cat ? ` <span class="ar-pill" style="--pc:${AR_CAT_COLOR[m.cat]};font-weight:600">${m.cat}</span>` : ''}</td><td class="r">${arWon(m.prev)}</td><td class="r">${arWon(m.cur)}</td><td class="r">${arDelta(m.cur, m.prev)}</td></tr>`).join('')
       : `<tr><td colspan="5">${emptyMsg('해당 거래처가 없어요')}</td></tr>`}</tbody></table></div></div>`;
@@ -1543,12 +1560,14 @@
         <div class="ar-bars">${bars}</div>
       </div>
       ${hasPrev ? `<div class="panel ar-panel">
-        <div class="ar-panel-head"><h3 class="section-title">전월 대비 증감</h3><p>${prevDates.map(arMonthLabel).join(', ')} → ${arMonthLabel(arMonthSel)} · ▲ 증가(빨강) ▼ 감소(초록)</p></div>
+        <div class="ar-panel-head"><h3 class="section-title">전월 대비 증감</h3><p>${prevDates.map(arMonthLabel).join(', ')} → ${arMonthLabel(arMonthSel)} · 금액은 백만원 단위 · ▲ 증가(빨강) ▼ 감소(초록)</p></div>
         <div class="table-scroll">${deltaTable}</div>
-        ${hasAmounts ? `<div class="ar-checks" style="grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));gap:20px;margin-top:22px">
-          ${moverTable(up, '미수가 가장 많이 늘어난 거래처 10곳')}${moverTable(down, '미수가 가장 많이 줄어든 거래처 10곳')}</div>`
-          : `<div class="ar-foot">거래처별 증감은 두 달 모두 새 방식으로 올린 파일이 있어야 보여요. 해당 월 파일을 한 번 더 올려주세요.</div>`}
-      </div>` : ''}
+      </div>
+      ${hasAmounts ? `<div class="panel ar-panel mover-panel">
+        <div class="ar-panel-head"><h3 class="section-title">거래처별 미수 변동 TOP 10</h3><p>${prevDates.map(arMonthLabel).join(', ')} → ${arMonthLabel(arMonthSel)} · 거래처 단위로 가장 크게 바뀐 곳</p></div>
+        <div class="mover-grid">${moverTable(up, '미수가 가장 많이 늘어난 거래처 10곳', 'up')}${moverTable(down, '미수가 가장 많이 줄어든 거래처 10곳', 'down')}</div>
+      </div>`
+        : `<div class="panel ar-panel"><div class="ar-foot">거래처별 증감은 두 달 모두 새 방식으로 올린 파일이 있어야 보여요. 해당 월 파일을 한 번 더 올려주세요.</div></div>`}` : ''}
       <div class="panel ar-panel">
         <div class="ar-panel-head"><h3 class="section-title">보고용 요약표</h3>
           <button class="btn-secondary" id="arCopyBtn" onclick="arCopy()">표 복사 (엑셀 붙여넣기용)</button></div>

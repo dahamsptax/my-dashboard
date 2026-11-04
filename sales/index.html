@@ -387,7 +387,10 @@
     if (resetMonth) selectedMonthNum = null;
     try {
       const [monthlyRes, yearRes, updCmRes, updCustRes] = await Promise.all([
-        scope(db.from('sales_monthly').select('*')).order('sort_order', { ascending: true }),
+        // 회사와 무관하게 전체를 받아옵니다 — "월별 매출" 그래프의 세로축 기준(최댓값)을
+        // 통합/대상국제교역/디아이화스너/픽스글로벌 모든 탭에서 동일하게 맞추기 위해서입니다.
+        // (그래프 눈금이 탭마다 다르면 막대 높이만 보고 회사 간 매출을 비교할 때 착시가 생깁니다.)
+        db.from('sales_monthly').select('*').order('sort_order', { ascending: true }),
         scope(db.from('sales_customer_monthly').select('year')).order('year', { ascending: false }).limit(1),
         scope(db.from('sales_customer_monthly').select('updated_at')).order('updated_at', { ascending: false }).limit(1),
         scope(db.from('sales_customers').select('updated_at')).order('updated_at', { ascending: false }).limit(1),
@@ -397,8 +400,14 @@
       updateLastUpdatedLabel(stamps.length ? stamps[stamps.length - 1] : null);
       if (yearRes.data && yearRes.data[0]) dataYear = yearRes.data[0].year;
 
-      let monthly = monthlyRes.data || [];
-      if (isAll) monthly = aggregateMonthlyAll(monthly);
+      const allMonthlyRows = monthlyRes.data || [];
+      const combinedMonthly = aggregateMonthlyAll(allMonthlyRows); // 통합(3개 회사 합산) 월별 시리즈
+      // 월별 매출 그래프의 세로축 최댓값: 통합 기준으로 한 번만 계산해서 고정합니다 —
+      // 통합이 항상 개별 회사보다 크거나 같으므로, 이 값이 모든 탭·모든 기준월에서 공통 상한이 됩니다.
+      const chartMax = Math.max(...combinedMonthly.map((m) => Math.max(Number(m.revenue) || 0, Number(m.target) || 0)), 1) * 1.15;
+      let monthly = isAll
+        ? combinedMonthly
+        : allMonthlyRows.filter((r) => r.company === selectedCompany).sort((a, b) => a.sort_order - b.sort_order);
       availableMonths = monthly.map((m) => m.sort_order);
       renderBaseMonthSelect();
       const scopeLabel = isAll ? '통합' : selectedCompany;
@@ -443,7 +452,7 @@
         : null;
 
       renderKPI(visible, pipeline, computedAvgRate);
-      renderMonthlyChart(visible);
+      renderMonthlyChart(visible, chartMax);
       renderFunnel(pipeline);
       renderRank('personRank', gainers, 'gainer');
       renderRank('productRank', sellers, 'seller');
@@ -498,14 +507,15 @@
       </div>
     `;
   }
-  function renderMonthlyChart(monthly) {
+  function renderMonthlyChart(monthly, forcedMax) {
     const svg = document.getElementById('monthlyChart');
     const W = 640, H = 340;
     const marginLeft = 46, marginRight = 16, marginTop = 24, marginBottom = 40;
     const plotW = W - marginLeft - marginRight;
     const plotH = H - marginTop - marginBottom;
     const n = monthly.length;
-    const maxVal = Math.max(...monthly.map(m => Math.max(Number(m.revenue) || 0, Number(m.target) || 0))) * 1.15 || 1;
+    // forcedMax가 전달되면 모든 탭·기준월에서 공통 세로축 상한을 사용합니다(회사 간 매출 비교 시 착시 방지).
+    const maxVal = forcedMax || (Math.max(...monthly.map(m => Math.max(Number(m.revenue) || 0, Number(m.target) || 0))) * 1.15 || 1);
     const slot = plotW / n;
     const barW = slot * 0.5;
     const yFor = (v) => marginTop + plotH - (v / maxVal) * plotH;

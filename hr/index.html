@@ -360,9 +360,10 @@
   <div id="statusMsg" class="status-msg"></div>
 </div>
 
-<footer>본 대시보드는 업로드한 엑셀 파일의 데이터를 기준으로 브라우저에서 직접 계산합니다(서버 전송 없음). 데이터는 이 브라우저의 로컬 저장소에만 보관되며, 다른 기기·브라우저에서는 다시 업로드해야 합니다.</footer>
+<footer>본 대시보드는 업로드한 엑셀 파일에서 이름·주민번호·개별 급여 같은 개인정보는 저장하지 않고, 회사·월별 집계 숫자만 계산해 Supabase(공유 서버)에 저장합니다. 그래서 PC·휴대폰 등 어떤 기기로 접속해도 같은 내용이 보여요.</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function(){
   "use strict";
@@ -376,11 +377,20 @@
 
     - 재직인원·입사/퇴사·근속분포·인건비는 모두 이 원본 시트에서 직접 계산합니다.
       (월별현황·근속분포·전체현황 같은 요약 시트는 읽지 않아요.)
-    - 주민번호·이름 같은 개인정보는 저장하지 않고, 회사별 집계 숫자만 이 브라우저에 보관합니다.
-    - 업로드하면 기존 데이터는 전부 새 파일 내용으로 교체됩니다.
+    - 주민번호·이름 같은 개인정보는 저장하지 않고, 회사·월별 집계 숫자만 저장합니다.
+    - 업로드하면 기존 집계는 전부 새 파일 내용으로 교체됩니다.
+
+    ▼▼▼ 집계 숫자는 Supabase(공유 서버)에 저장됩니다. 그래야 PC·휴대폰 등 어떤 기기로
+        접속해도 같은 내용이 보여요. (채권추심 대시보드의 receivable_monthly와 같은 방식)
+    Supabase에 테이블이 있어야 해요: hr_monthly
+    (같이 드린 supabase/hr_monthly.sql 을 Supabase SQL Editor에서 먼저 실행해주세요)
   */
 
-  var STORAGE_KEY = 'hrDashboardData';
+  var SUPABASE_URL = "https://mcypzsammvrthfqihkwy.supabase.co";
+  var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeXB6c2FtbXZydGhmcWloa3d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzOTk1NzcsImV4cCI6MjEwMTk3NTU3N30.oUcfA-F0S9QHgpK56qvB0-aczx7AMPXDCtkVtNrJ3QM";
+  var db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  var HR_TABLE = 'hr_monthly';
+
   var DATA_VERSION = 3;
   var PAYROLL_RATIO_THRESHOLD = 35; // 인건비 비중 기준선 (%)
   var TURNOVER_TARGET = 12;         // 이직률 목표 (%)
@@ -1242,53 +1252,153 @@
     renderCompanyPayroll();
   }
 
+  // ---------- Supabase 저장·불러오기 ----------
+  // 회사별 월별 집계를 hr_monthly 테이블의 행(company, ym 당 1행)으로 펼칩니다.
+  function flattenRows(data){
+    var rows = [];
+    var now = new Date().toISOString();
+    Object.keys(data.companies).forEach(function(key){
+      var c = data.companies[key];
+      (data.months || []).forEach(function(ym){
+        rows.push({
+          company: key,
+          ym: ym,
+          staff_count: c.staffCount || 0,
+          headcount: c.headcount[ym] || 0,
+          joined: c.joined[ym] || 0,
+          left_count: c.left[ym] || 0,
+          payroll: (c.payroll[ym] === null || c.payroll[ym] === undefined) ? null : c.payroll[ym],
+          tenure: c.tenure[ym] || [0,0,0,0],
+          updated_at: now
+        });
+      });
+    });
+    return rows;
+  }
+
+  // hr_monthly 행 목록 -> hrData
+  function buildHrDataFromRows(rows){
+    var companies = {};
+    var monthSet = {};
+    var latestUpdated = null;
+    rows.forEach(function(r){
+      monthSet[r.ym] = true;
+      if(!companies[r.company]){
+        companies[r.company] = { staffCount: 0, headcount:{}, joined:{}, left:{}, payroll:{}, tenure:{} };
+      }
+      var c = companies[r.company];
+      c.staffCount = Math.max(c.staffCount, r.staff_count || 0);
+      c.headcount[r.ym] = r.headcount || 0;
+      c.joined[r.ym] = r.joined || 0;
+      c.left[r.ym] = r.left_count || 0;
+      c.payroll[r.ym] = (r.payroll === null || r.payroll === undefined) ? null : Number(r.payroll);
+      c.tenure[r.ym] = Array.isArray(r.tenure) ? r.tenure : [0,0,0,0];
+      if(r.updated_at && (!latestUpdated || r.updated_at > latestUpdated)) latestUpdated = r.updated_at;
+    });
+    var months = Object.keys(monthSet).sort();
+    return { version: DATA_VERSION, months: months, companies: companies, updatedAt: latestUpdated };
+  }
+
+  // Supabase 1000행 제한 대비 페이지네이션
+  async function fetchAllRows(table){
+    var out = [];
+    var from = 0;
+    var pageSize = 1000;
+    while(true){
+      var res = await db.from(table).select('*').range(from, from + pageSize - 1);
+      if(res.error) throw res.error;
+      var data = res.data || [];
+      out = out.concat(data);
+      if(data.length < pageSize) break;
+      from += pageSize;
+    }
+    return out;
+  }
+
+  // 새로 만든 집계를 Supabase에 반영 (업로드 = 전체 교체)
+  async function saveToSupabase(data){
+    var rows = flattenRows(data);
+    if(rows.length){
+      var upRes = await db.from(HR_TABLE).upsert(rows, { onConflict: 'company,ym' });
+      if(upRes.error) throw upRes.error;
+    }
+    // 새 파일에 없는 회사·월 조합(예: 이번엔 안 올린 회사)은 정리합니다.
+    var existing = await fetchAllRows(HR_TABLE);
+    var keep = {};
+    rows.forEach(function(r){ keep[r.company + "|" + r.ym] = true; });
+    var staleIds = existing.filter(function(r){ return !keep[r.company + "|" + r.ym]; }).map(function(r){ return r.id; });
+    if(staleIds.length){
+      var delRes = await db.from(HR_TABLE).delete().in('id', staleIds);
+      if(delRes.error) throw delRes.error;
+    }
+  }
+
+  async function loadFromSupabase(){
+    var rows = await fetchAllRows(HR_TABLE);
+    if(rows.length){
+      hrData = buildHrDataFromRows(rows);
+    } else {
+      hrData = { version: DATA_VERSION, months: [], companies: {}, updatedAt: null };
+    }
+    updateLastUpdatedLabel(hrData.updatedAt);
+  }
+
+  function setUploadBusy(busy){
+    Array.prototype.forEach.call(document.querySelectorAll(".toolbar-actions button, .toolbar-actions label"), function(elx){
+      if(busy){ elx.setAttribute("disabled", "disabled"); elx.style.pointerEvents = "none"; elx.style.opacity = .6; }
+      else { elx.removeAttribute("disabled"); elx.style.pointerEvents = ""; elx.style.opacity = 1; }
+    });
+  }
+
   // ---------- 엑셀 업로드 처리 ----------
   function handleFile(evt){
     var file = evt.target.files[0];
     if(!file) return;
     var reader = new FileReader();
-    reader.onload = function(e){
+    reader.onload = async function(e){
       try{
         var wb = XLSX.read(new Uint8Array(e.target.result), { type: "array", cellDates: true });
         var built = buildHrData(wb);
-        hrData = built.data;
-        selectedBaseYm = null;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(hrData));
 
-        updateLastUpdatedLabel(hrData.updatedAt);
-        hideStatus();
+        setUploadBusy(true);
+        showStatus("Supabase에 저장하는 중...");
+
+        var saveErr = null;
+        try{
+          await saveToSupabase(built.data);
+          await loadFromSupabase();
+        } catch(e2){
+          console.error(e2);
+          saveErr = e2;
+          hrData = built.data;             // 저장에 실패해도 이 화면에서는 보여줍니다
+          updateLastUpdatedLabel(hrData.updatedAt);
+        }
+        selectedBaseYm = null;
         fetchSales();
         renderAll();
+
         var summary = COMPANIES.filter(function(c){ return hrData.companies[c.key]; }).map(function(c){
           return c.key + " " + hrData.companies[c.key].staffCount + "명";
         }).join(" · ");
         var msg = "업로드가 완료됐습니다. (" + summary + " · " + ymShort(hrData.months[0]) + "~" + ymShort(hrData.months[hrData.months.length - 1]) + ")";
         if(built.missing.length) msg += "<span class=\"status-detail\">시트를 찾지 못한 회사: " + escapeHtml(built.missing.join(", ")) + "</span>";
-        showStatus(msg);
+        if(saveErr){
+          msg = "⚠️ 공유 서버(Supabase)에 저장하지 못해 이 기기에서만 보일 수 있어요. hr_monthly 테이블이 만들어졌는지 확인해 주세요." +
+            "<span class=\"status-detail\">" + escapeHtml(saveErr && saveErr.message ? saveErr.message : String(saveErr)) + "</span>";
+          showStatus(msg, true);
+        } else {
+          showStatus(msg);
+        }
       } catch(err){
         console.error(err);
         showStatus("⚠️ 엑셀 파일을 읽는 중 문제가 발생했어요. 양식(시트 이름·열 이름)이 맞는지 확인해주세요." +
           "<span class=\"status-detail\">" + escapeHtml(err && err.message ? err.message : String(err)) + "</span>", true);
       } finally {
+        setUploadBusy(false);
         evt.target.value = "";
       }
     };
     reader.readAsArrayBuffer(file);
-  }
-
-  function loadFromStorage(){
-    try{
-      var raw = localStorage.getItem(STORAGE_KEY);
-      if(raw){
-        var payload = JSON.parse(raw);
-        // 예전 양식(월별현황 1개 시트)으로 저장된 데이터는 쓰지 않습니다.
-        if(payload && payload.version === DATA_VERSION){
-          hrData = payload;
-          updateLastUpdatedLabel(hrData.updatedAt);
-        }
-      }
-    } catch(e){ console.error(e); }
-    renderAll();
   }
 
   function downloadTemplate(){
@@ -1306,15 +1416,24 @@
     XLSX.writeFile(wb, "인사_업로드양식.xlsx");
   }
 
-  function resetAll(){
-    if(!confirm("정말 모든 데이터를 삭제할까요? 이 작업은 되돌릴 수 없어요.")) return;
-    localStorage.removeItem(STORAGE_KEY);
-    hrData = { version: DATA_VERSION, months: [], companies: {}, updatedAt: null };
-    selectedCompany = "all";
-    selectedBaseYm = null;
-    updateLastUpdatedLabel(null);
-    hideStatus();
-    renderAll();
+  async function resetAll(){
+    if(!confirm("정말 Supabase에 저장된 모든 데이터를 삭제할까요? 이 작업은 되돌릴 수 없어요.")) return;
+    setUploadBusy(true);
+    try{
+      var delRes = await db.from(HR_TABLE).delete().gte('id', 0);
+      if(delRes.error) throw delRes.error;
+      hrData = { version: DATA_VERSION, months: [], companies: {}, updatedAt: null };
+      selectedCompany = "all";
+      selectedBaseYm = null;
+      updateLastUpdatedLabel(null);
+      hideStatus();
+      renderAll();
+    } catch(err){
+      console.error(err);
+      showStatus("⚠️ 전체 초기화에 실패했어요.<span class=\"status-detail\">" + escapeHtml(err && err.message ? err.message : String(err)) + "</span>", true);
+    } finally {
+      setUploadBusy(false);
+    }
   }
 
   window.handleFile = handleFile;
@@ -1329,8 +1448,17 @@
   window.shiftBaseMonth = shiftBaseMonth;
   window.resetBaseMonth = resetBaseMonth;
 
-  function initAll(){
-    loadFromStorage();
+  async function initAll(){
+    $("lastUpdated").textContent = "불러오는 중...";
+    try{
+      await loadFromSupabase();
+    } catch(e){
+      console.error(e);
+      showStatus("⚠️ 공유 서버(Supabase)에서 데이터를 불러오지 못했어요. hr_monthly 테이블이 만들어졌는지 확인해 주세요." +
+        "<span class=\"status-detail\">" + escapeHtml(e && e.message ? e.message : String(e)) + "</span>", true);
+      updateLastUpdatedLabel(null);
+    }
+    renderAll();
     fetchSales();
     fetchLeaveCalendar();
   }

@@ -709,7 +709,8 @@
       `;
     }).join('');
   }
-  document.getElementById('refreshBtn').addEventListener('click', loadDashboard);
+  // Wrap so the click event isn't passed as resetMonth (it would reset the selected month).
+  document.getElementById('refreshBtn').addEventListener('click', () => loadDashboard());
   loadDashboard();
 </script>
 </body>

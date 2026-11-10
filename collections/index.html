@@ -516,6 +516,11 @@
     }[m]));
   }
   function jsStr(s) { return String(s ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+  // Local YYYY-MM-DD. toISOString() is UTC, which gives yesterday before 09:00 KST.
+  function localToday() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
   function emptyMsg(t) { return `<div class="empty-msg">${escapeHtml(t)}</div>`; }
 
   function showStatus(html, isError) {
@@ -825,7 +830,7 @@
     if (oldStatus === newStatus) return;
 
     let closeDate = c.close_date;
-    if (newStatus === '종료' && !closeDate) closeDate = new Date().toISOString().slice(0, 10);
+    if (newStatus === '종료' && !closeDate) closeDate = localToday();
     if (oldStatus === '종료' && newStatus !== '종료') closeDate = null;
 
     try {
@@ -838,7 +843,7 @@
       const { error: e2 } = await db.from('collection_progress').insert({
         case_no: caseNo,
         creditor_company: currentCompany,
-        progress_date: new Date().toISOString().slice(0, 10),
+        progress_date: localToday(),
         status: newStatus,
         note: `상태 변경: ${oldStatus} → ${newStatus}`
       });
@@ -885,7 +890,7 @@
     document.getElementById('formRep').value = '';
     document.getElementById('formAmount').value = '';
     document.getElementById('formStatus').value = '신청';
-    document.getElementById('formApplyDate').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('formApplyDate').value = localToday();
     document.getElementById('formRemark').value = '';
     document.getElementById('formCloseDate').value = '';
     document.getElementById('addCaseModal').style.display = 'flex';
@@ -921,12 +926,12 @@
     if (!amount) { alert('채권 금액을 입력해주세요.'); return; }
 
     const status = document.getElementById('formStatus').value;
-    const applyDate = document.getElementById('formApplyDate').value || new Date().toISOString().slice(0, 10);
+    const applyDate = document.getElementById('formApplyDate').value || localToday();
     const closeDate = document.getElementById('formCloseDate').value || null;
     const remark = document.getElementById('formRemark').value.trim();
     const bizNo = document.getElementById('formBizNo').value.trim();
     const rep = document.getElementById('formRep').value.trim();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localToday();
 
     const submitBtn = document.getElementById('modalSubmitBtn');
     submitBtn.disabled = true;

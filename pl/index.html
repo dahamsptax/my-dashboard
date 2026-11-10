@@ -349,6 +349,12 @@
     return n;
   }
   function $(id){ return document.getElementById(id); }
+  // Escape DB/error strings before inserting into innerHTML (XSS guard).
+  function esc(v){
+    return String(v).replace(/[&<>"']/g, function(ch){
+      return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "'":"&#39;" }[ch];
+    });
+  }
 
   // ---------- 포맷 헬퍼 ----------
   function fmtNum(n){
@@ -638,8 +644,8 @@
       var tag = normalizeCostType(r.cost_type);
       var tr = document.createElement("tr");
       tr.innerHTML =
-        "<td>" + (r.item || "-") + "</td>" +
-        "<td><span class=\"tag " + tag.cls + "\">" + tag.label + "</span></td>" +
+        "<td>" + esc(r.item || "-") + "</td>" +
+        "<td><span class=\"tag " + tag.cls + "\">" + esc(tag.label) + "</span></td>" +
         "<td class=\"amount\">" + fmtWon(amount) + "</td>" +
         "<td class=\"share\"><div class=\"share-cell\">" +
           "<span>" + fmtPct(share,1) + "</span>" +
@@ -670,7 +676,7 @@
       var posBar = rate >= 0 ? "<div class=\"margin-bar pos-bar\" style=\"width:" + pctOfHalf + "%\"></div>" : "";
 
       row.innerHTML =
-        "<div class=\"margin-name\" title=\"" + (r.product||"-") + "\">" + (r.product || "-") + "</div>" +
+        "<div class=\"margin-name\" title=\"" + esc(r.product || "-") + "\">" + esc(r.product || "-") + "</div>" +
         "<div class=\"margin-track\">" +
           "<div class=\"margin-half neg\">" + negBar + "</div>" +
           "<div class=\"margin-zero\"></div>" +
@@ -687,7 +693,7 @@
     banner.classList.add("show");
     banner.innerHTML =
       "데이터를 불러오지 못했습니다. Supabase URL/anon key, 테이블·컬럼 이름을 다시 확인해주세요.<br>" +
-      "<code>" + (err && err.message ? err.message : String(err)) + "</code>";
+      "<code>" + esc(err && err.message ? err.message : String(err)) + "</code>";
     setPageMeta("연결 오류 — 아래 안내를 확인해주세요");
   }
 

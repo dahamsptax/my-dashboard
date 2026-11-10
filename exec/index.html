@@ -346,6 +346,12 @@
     return n;
   }
   function $(id){ return document.getElementById(id); }
+  // Escape DB/error strings before inserting into innerHTML (XSS guard).
+  function esc(v){
+    return String(v).replace(/[&<>"']/g, function(ch){
+      return { "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "'":"&#39;" }[ch];
+    });
+  }
 
   // ---------- 포맷 헬퍼 ----------
   function fmtNum(n){
@@ -828,7 +834,7 @@
           (c.prevBad !== null ? " " + recvChangeHtml(c.bad, c.prevBad) : "") + "</span>"
         : "<span>악성 구분 없음</span>";
       return "<div class=\"recv-row\">" +
-        "<div class=\"recv-name\">" + c.name + "</div>" +
+        "<div class=\"recv-name\">" + esc(c.name) + "</div>" +
         "<div class=\"recv-track\"><div class=\"recv-total\" style=\"width:" + (c.total / max * 100) + "%\"></div>" +
           (c.hasCat ? "<div class=\"recv-bad\" style=\"width:" + (Math.max(0, c.bad) / max * 100) + "%\"></div>" : "") + "</div>" +
         "<div class=\"recv-meta\"><span>전체 <b>" + fmtManwon(c.total) + "</b>" +
@@ -938,7 +944,7 @@
     banner.classList.add("show");
     banner.innerHTML =
       "데이터를 불러오지 못했습니다. Supabase URL/anon key, 테이블·컬럼 이름을 다시 확인해주세요.<br>" +
-      "<code>" + (err && err.message ? err.message : String(err)) + "</code>";
+      "<code>" + esc(err && err.message ? err.message : String(err)) + "</code>";
     setPageMeta("연결 오류 — 아래 안내를 확인해주세요");
   }
 

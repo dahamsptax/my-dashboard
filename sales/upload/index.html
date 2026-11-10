@@ -470,17 +470,49 @@
 
   document.getElementById('saveBtn').addEventListener('click', async () => {
     if (!computed) return;
+    const saveBtn = document.getElementById('saveBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
     const saveStatus = document.getElementById('saveStatus');
-    showStatus(saveStatus, 'Supabase에 저장하는 중...', 'info');
+    // Lock buttons while saving to prevent duplicate writes.
+    saveBtn.disabled = true;
+    cancelBtn.disabled = true;
+    showStatus(saveStatus, 'Supabase에 저장하는 중…', 'info');
     try {
-      await saveToSupabase(computed);
+      const saved = await saveToSupabase(computed);
+      if (saved === false) {
+        showStatus(saveStatus, '저장을 취소했습니다. 기존 데이터는 그대로입니다.', 'info');
+        return;
+      }
       showStatus(saveStatus, `저장 완료! (${selectedCompany}) 영업 대시보드에서 새로고침하면 바로 반영됩니다.`, 'ok');
     } catch (err) {
       console.error(err);
       showStatus(saveStatus, '저장 실패: ' + (err.message || String(err)) +
         ' — Supabase 쓰기 권한(RLS 정책)이 열려 있는지 확인이 필요할 수 있습니다.', 'error');
+    } finally {
+      saveBtn.disabled = false;
+      cancelBtn.disabled = false;
     }
   });
+
+  // Replace this company's rows in `table` with `newRows`.
+  // If the insert fails, put the old rows back so data is not lost.
+  async function replaceSnapshot(table, newRows) {
+    const { data: oldRows, error: readErr } = await db.from(table).select('*').eq('company', selectedCompany);
+    if (readErr) throw readErr;
+    const { error: delErr } = await db.from(table).delete().eq('company', selectedCompany);
+    if (delErr) throw delErr;
+    if (!newRows.length) return;
+    const { error: insErr } = await db.from(table).insert(newRows);
+    if (insErr) {
+      if (oldRows && oldRows.length) {
+        const { error: restoreErr } = await db.from(table).insert(oldRows);
+        if (restoreErr) {
+          throw new Error(`${insErr.message} (기존 ${table} 데이터 복구도 실패했습니다: ${restoreErr.message})`);
+        }
+      }
+      throw insErr;
+    }
+  }
 
   function mapToCustomerRows(map, year, monthNum) {
     const out = [];
@@ -489,6 +521,15 @@
   }
 
   async function saveToSupabase(r) {
+    // Check for an existing month row first and confirm overwrite before any write.
+    const { data: existingMonthly, error: monthlyReadErr } = await db.from('sales_monthly')
+      .select('*').eq('company', selectedCompany).order('sort_order', { ascending: true });
+    if (monthlyReadErr) throw monthlyReadErr;
+    const existing = existingMonthly.find(m => m.month === r.currMonthLabel);
+    if (existing && !confirm(`${selectedCompany}의 ${r.currMonthLabel} 데이터가 이미 있습니다.\n새 파일 기준으로 덮어쓸까요?`)) {
+      return false;
+    }
+
     // 0) 거래처×월 히스토리 저장 — 다음 달 업로드 때 "전달 파일 없이" 비교할 수 있게 함
     const currCustomerRows = mapToCustomerRows(r.currRows, r.currYear, r.currMonthNum);
     const { error: custCurrErr } = await db.from('sales_customer_monthly')
@@ -504,10 +545,7 @@
     // 1) sales_monthly: 이번 달 행 갱신 또는 추가 (전체 누적 — 오래된 달을 지우지 않습니다)
     // sort_order는 업로드한 "순서"가 아니라 실제 달 숫자(currMonthNum)로 고정합니다 —
     // 1월~8월을 어떤 순서로 올리시든 그래프는 항상 달 순서(1,2,3...)대로 나오게 하기 위해서입니다.
-    // 회사별로 별도 행을 유지하기 위해 이 회사(company) 것만 조회합니다.
-    const { data: existingMonthly, error: monthlyReadErr } = await db.from('sales_monthly')
-      .select('*').eq('company', selectedCompany).order('sort_order', { ascending: true });
-    if (monthlyReadErr) throw monthlyReadErr;
+    // 회사별로 별도 행을 유지하기 위해 이 회사(company) 것만 조회합니다. (조회는 함수 맨 위에서 함)
     const monthRow = {
       company: selectedCompany,
       month: r.currMonthLabel,
@@ -517,7 +555,6 @@
       total_customers: r.totalCustomers,
       avg_growth_rate: r.avgRate != null ? Math.round(r.avgRate * 10) / 10 : null,
     };
-    const existing = existingMonthly.find(m => m.month === r.currMonthLabel);
     if (existing) {
       const { error } = await db.from('sales_monthly').update(monthRow).eq('id', existing.id);
       if (error) throw error;
@@ -527,20 +564,13 @@
     }
 
     // 2) sales_pipeline / sales_rank: 이 회사의 이번 달 기준 스냅샷으로 교체 (다른 회사 행은 건드리지 않음)
-    const { error: delPipeErr } = await db.from('sales_pipeline').delete().eq('company', selectedCompany);
-    if (delPipeErr) throw delPipeErr;
     const pipelineRows = r.funnel.map((f, i) => ({ company: selectedCompany, sort_order: i + 1, stage: f.stage, count: f.count }));
-    const { error: insPipeErr } = await db.from('sales_pipeline').insert(pipelineRows);
-    if (insPipeErr) throw insPipeErr;
+    await replaceSnapshot('sales_pipeline', pipelineRows);
 
-    const { error: delRankErr } = await db.from('sales_rank').delete().eq('company', selectedCompany);
-    if (delRankErr) throw delRankErr;
     const gainerRows = r.gainers.map(g => ({ company: selectedCompany, kind: 'gainer', name: g.name, amount: Math.round(g.curr / 10000), rate: Math.round(g.rate * 10) / 10 }));
     const sellerRows = r.sellers.map(s => ({ company: selectedCompany, kind: 'seller', name: s.name, amount: Math.round(s.amount / 10000), rate: null }));
-    if (gainerRows.length || sellerRows.length) {
-      const { error: insRankErr } = await db.from('sales_rank').insert([...gainerRows, ...sellerRows]);
-      if (insRankErr) throw insRankErr;
-    }
+    await replaceSnapshot('sales_rank', [...gainerRows, ...sellerRows]);
+    return true;
   }
 </script>
 </body>

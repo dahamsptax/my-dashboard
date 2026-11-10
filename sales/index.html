@@ -111,8 +111,9 @@
   svg .funnel-count { font-size: 11.5px; opacity: .9; }
   svg .funnel-rate { font-size: 11.5px; fill: var(--color-primary-dark); font-weight: 700; }
   svg .funnel-final { font-size: 13.5px; fill: var(--color-text); font-weight: 800; }
-  .card-head-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 4px; }
+  .card-head-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 4px; flex-wrap: wrap; }
   .card-head-row h2 { margin: 0; }
+  .card-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .seg-toggle { display: flex; background: var(--color-primary-soft); border-radius: 999px; padding: 3px; gap: 2px; flex: none; }
   .seg-btn {
     font-family: inherit; font-size: 11.5px; font-weight: 700; padding: 5px 11px; border-radius: 999px;
@@ -218,9 +219,12 @@
       <div class="card">
         <div class="card-head-row">
           <h2>매출액 상위 거래처</h2>
-          <div class="seg-toggle" id="sellerViewToggle">
-            <button type="button" class="seg-btn" data-mode="month">이번 달</button>
-            <button type="button" class="seg-btn" data-mode="cumulative">누적</button>
+          <div class="card-head-actions">
+            <div class="seg-toggle" id="sellerViewToggle">
+              <button type="button" class="seg-btn" data-mode="month">이번 달</button>
+              <button type="button" class="seg-btn" data-mode="cumulative">누적</button>
+            </div>
+            <button type="button" class="small-btn" id="sellerDownloadBtn">⬇ 엑셀</button>
           </div>
         </div>
         <p class="card-caption" id="productRankCaption">상품 데이터가 없어, 이번 달 매출액 상위 거래처로 대체했습니다.</p>
@@ -387,16 +391,20 @@
         .map((r) => ({ kind: 'gainer', name: r.name, amount: Math.round(r.curr / 10000), rate: r.rate * 100 })) : [],
       sellers: [...parsed].sort((a, b) => b.curr - a.curr).slice(0, 5)
         .map((r) => ({ kind: 'seller', name: r.name, amount: Math.round(r.curr / 10000), rate: null })),
+      // 다운로드용: 상위 5곳 제한 없이 매출이 있는 거래처 전체를 매출액순으로 담습니다.
+      sellersFull: [...parsed].filter((r) => r.curr > 0).sort((a, b) => b.curr - a.curr)
+        .map((r) => ({ kind: 'seller', name: r.name, amount: Math.round(r.curr / 10000), rate: null })),
     };
   }
   // 연초~기준월 누적 매출액 상위 거래처 (거래처별 amount를 월 구분 없이 모두 합산)
-  function computeCumulativeSellers(rows) {
+  // limit을 주지 않으면(=Infinity) 전체 거래처를 매출액순으로 담습니다 (엑셀 다운로드용).
+  function computeCumulativeSellers(rows, limit = 5) {
     const map = new Map();
     rows.forEach((r) => {
       const amt = Number(r.amount) || 0;
       if (map.has(r.biz)) map.get(r.biz).amount += amt; else map.set(r.biz, { name: r.name, amount: amt });
     });
-    return [...map.values()].sort((a, b) => b.amount - a.amount).slice(0, 5)
+    return [...map.values()].filter((r) => r.amount > 0).sort((a, b) => b.amount - a.amount).slice(0, limit)
       .map((r) => ({ kind: 'seller', name: r.name, amount: Math.round(r.amount / 10000), rate: null }));
   }
 
@@ -407,7 +415,36 @@
   let sellerViewMode = localStorage.getItem(SELLER_VIEW_STORAGE_KEY) === 'cumulative' ? 'cumulative' : 'month';
   let lastMonthSellers = [];
   let lastCumulativeSellers = [];
+  let lastMonthSellersFull = [];
+  let lastCumulativeSellersFull = [];
   let lastSellerMeta = { dataYear: null, base: null };
+  function escapeCsvField(v) {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function downloadSellerCsv() {
+    const list = sellerViewMode === 'cumulative' ? lastCumulativeSellersFull : lastMonthSellersFull;
+    if (!list.length) { alert('다운로드할 데이터가 없습니다.'); return; }
+    const { dataYear: y, base: b } = lastSellerMeta;
+    const bb = b != null ? String(b).padStart(2, '0') : '';
+    const periodLabel = sellerViewMode === 'cumulative'
+      ? (y && b ? `${y}년 1월~${b}월 누적` : '누적')
+      : (y && b ? `${y}년 ${b}월` : '이번 달');
+    const fileSuffix = sellerViewMode === 'cumulative' ? `누적_${y}-01~${bb}` : `이번달_${y}-${bb}`;
+    const rows = [['순위', '거래처명', '매출액(만원)', '기준', '회사']];
+    list.forEach((item, idx) => rows.push([idx + 1, item.name, item.amount, periodLabel, selectedCompany]));
+    const csv = '﻿' + rows.map((r) => r.map(escapeCsvField).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `매출액상위거래처_${selectedCompany}_${fileSuffix}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+  document.getElementById('sellerDownloadBtn').addEventListener('click', downloadSellerCsv);
   function applySellerView() {
     document.querySelectorAll('#sellerViewToggle .seg-btn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.mode === sellerViewMode);
@@ -472,6 +509,8 @@
         renderRank('personRank', [], 'gainer');
         lastMonthSellers = [];
         lastCumulativeSellers = [];
+        lastMonthSellersFull = [];
+        lastCumulativeSellersFull = [];
         lastSellerMeta = { dataYear: null, base: null };
         applySellerView();
         return;
@@ -504,11 +543,16 @@
       if (baseRow.total_customers > 0) pipeline[0].count = Number(baseRow.total_customers);
       const gainers = results.flatMap((r) => r.gainers).sort((a, b) => b.rate - a.rate).slice(0, 5);
       const sellers = results.flatMap((r) => r.sellers).sort((a, b) => b.amount - a.amount).slice(0, 5);
+      // 엑셀 다운로드용: 상위 5곳 제한 없이 매출이 있는 거래처 전체를 매출액순으로 담습니다.
+      const monthSellersFull = results.flatMap((r) => r.sellersFull).sort((a, b) => b.amount - a.amount);
       // 누적(1월~base월) 상위 거래처: 회사별로 먼저 top5를 뽑은 뒤 합쳐서 다시 top5로 자릅니다 —
       // 전체 1위~5위는 반드시 어느 한 회사의 1위~5위 안에 포함되므로 이렇게 해도 결과는 정확합니다.
       const cumulativeSellers = companies
         .map((c) => computeCumulativeSellers(cmRows.filter((r) => r.company === c)))
         .flat().sort((a, b) => b.amount - a.amount).slice(0, 5);
+      const cumulativeSellersFull = companies
+        .map((c) => computeCumulativeSellers(cmRows.filter((r) => r.company === c), Infinity))
+        .flat().sort((a, b) => b.amount - a.amount);
       const rateWeight = results.filter((r) => r.avgRate != null).reduce((s, r) => s + r.currSum, 0);
       const computedAvgRate = rateWeight > 0
         ? results.filter((r) => r.avgRate != null).reduce((s, r) => s + r.avgRate * r.currSum, 0) / rateWeight
@@ -520,6 +564,8 @@
       renderRank('personRank', gainers, 'gainer');
       lastMonthSellers = sellers;
       lastCumulativeSellers = cumulativeSellers;
+      lastMonthSellersFull = monthSellersFull;
+      lastCumulativeSellersFull = cumulativeSellersFull;
       lastSellerMeta = { dataYear, base };
       applySellerView();
       subtitle.textContent = scopeLabel + ' · 기준월: ' + ymLabel(base);
@@ -709,8 +755,7 @@
       `;
     }).join('');
   }
-  // Wrap so the click event isn't passed as resetMonth (it would reset the selected month).
-  document.getElementById('refreshBtn').addEventListener('click', () => loadDashboard());
+  document.getElementById('refreshBtn').addEventListener('click', loadDashboard);
   loadDashboard();
 </script>
 </body>

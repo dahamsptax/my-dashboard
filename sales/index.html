@@ -575,12 +575,20 @@
       const t = n > 1 ? i / (n - 1) : 1;
       const fillColor = lerpColor(LIGHT, DARK, t);
       const textColor = t < 0.55 ? '#10151F' : '#FFFFFF';
+      const haloColor = t < 0.55 ? '#FFFFFF' : '#16308C';
       const x1 = cx - topW / 2, x2 = cx + topW / 2;
       const x3 = cx + botW / 2, x4 = cx - botW / 2;
+      const labelY = yTop + bandH / 2 - 4;
+      const countY = yTop + bandH / 2 + 14;
+      // 칸(폭)이 글씨보다 좁으면 글씨 일부가 카드의 흰 배경 위로 삐져나오는데,
+      // 그 부분이 텍스트 색과 같은 색(흰색)이면 안 보이게 됩니다.
+      // 그래서 글씨 뒤에 반대색 테두리(halo)를 한 겹 깔아 어떤 배경 위에서도 읽히게 합니다.
       content += `
         <polygon points="${x1},${yTop} ${x2},${yTop} ${x3},${yBottom} ${x4},${yBottom}" fill="${fillColor}" />
-        <text x="${cx}" y="${yTop + bandH / 2 - 4}" text-anchor="middle" class="funnel-label" style="fill:${textColor}">${escapeHtml(p.stage)}</text>
-        <text x="${cx}" y="${yTop + bandH / 2 + 14}" text-anchor="middle" class="funnel-count" style="fill:${textColor}">${fmt(p.count)}건</text>
+        <text x="${cx}" y="${labelY}" text-anchor="middle" class="funnel-label" style="fill:none;stroke:${haloColor};stroke-width:3px;stroke-linejoin:round">${escapeHtml(p.stage)}</text>
+        <text x="${cx}" y="${labelY}" text-anchor="middle" class="funnel-label" style="fill:${textColor}">${escapeHtml(p.stage)}</text>
+        <text x="${cx}" y="${countY}" text-anchor="middle" class="funnel-count" style="fill:none;stroke:${haloColor};stroke-width:3px;stroke-linejoin:round">${fmt(p.count)}건</text>
+        <text x="${cx}" y="${countY}" text-anchor="middle" class="funnel-count" style="fill:${textColor}">${fmt(p.count)}건</text>
       `;
       if (i + 1 < n) {
         const rate = topCount > 0 ? (bottomCount / topCount) * 100 : 0;
